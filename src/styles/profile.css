@@ -1,0 +1,360 @@
+/* =========================================================
+   DHIMAN STATIONERY — PROFILE / SHOP PAGE
+========================================================= */
+
+.profile-page {
+    min-height: 100vh;
+    padding: 0 16px 95px;
+    background: #ffffff;
+}
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+.profile-page-header {
+    min-height: 68px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.profile-back-btn {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border: 1px solid #eeeeee;
+    border-radius: 11px;
+    background: #ffffff;
+    color: #111111;
+    font-size: 20px;
+    line-height: 1;
+}
+
+.profile-page-header h1 {
+    color: #111111;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+/* =========================================================
+   SHOP PROFILE
+========================================================= */
+
+.shop-profile {
+    padding: 18px 0 20px;
+    text-align: center;
+}
+
+.shop-logo {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 12px;
+    border-radius: 20px;
+    background: #111111;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.shop-profile h2 {
+    margin-bottom: 6px;
+    color: #111111;
+    font-size: 19px;
+    font-weight: 600;
+}
+
+.shop-profile p {
+    color: #999999;
+    font-size: 10px;
+}
+
+/* =========================================================
+   MY ORDERS
+========================================================= */
+
+.my-orders-entry {
+    margin-bottom: 14px;
+}
+
+.my-orders-entry button {
+    width: 100%;
+    min-height: 66px;
+    padding: 10px 12px;
+    border: 1px solid #eeeeee;
+    border-radius: 14px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    text-align: left;
+}
+
+.my-orders-icon {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: #f5f5f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+}
+
+.my-orders-text {
+    min-width: 0;
+    flex: 1;
+}
+
+.my-orders-text strong {
+    display: block;
+    margin-bottom: 3px;
+    color: #222222;
+    font-size: 11px;
+}
+
+.my-orders-text p {
+    color: #999999;
+    font-size: 9px;
+}
+
+.my-orders-arrow {
+    color: #777777;
+    font-size: 18px;
+}
+
+/* =========================================================
+   SHOP INFORMATION
+========================================================= */
+
+.profile-section {
+    margin-bottom: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.profile-card {
+    min-height: 64px;
+    padding: 10px 12px;
+    border: 1px solid #eeeeee;
+    border-radius: 13px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+}
+
+.profile-card-icon {
+    width: 37px;
+    height: 37px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: #f5f5f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+}
+
+.profile-card strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #222222;
+    font-size: 11px;
+}
+
+.profile-card p {
+    color: #777777;
+    font-size: 9px;
+}
+
+.profile-card small {
+    display: block;
+    margin-top: 3px;
+    color: #aaaaaa;
+    font-size: 8px;
+}
+
+/* =========================================================
+   SERVICES
+========================================================= */
+
+.services-section {
+    margin-bottom: 20px;
+}
+
+.services-section h2 {
+    margin-bottom: 11px;
+    color: #111111;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.services-list {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.services-list>div {
+    min-height: 68px;
+    padding: 8px 4px;
+    border: 1px solid #eeeeee;
+    border-radius: 11px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.services-list span {
+    margin-bottom: 5px;
+    font-size: 18px;
+}
+
+.services-list p {
+    color: #666666;
+    font-size: 8px;
+}
+
+/* =========================================================
+   CONTACT
+========================================================= */
+
+.contact-section {
+    margin-bottom: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.contact-btn {
+    width: 100%;
+    min-height: 61px;
+    padding: 9px 11px;
+    border: 1px solid #eeeeee;
+    border-radius: 13px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+}
+
+.contact-btn>span {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: #f5f5f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+}
+
+.contact-btn>div {
+    min-width: 0;
+    flex: 1;
+}
+
+.contact-btn strong {
+    display: block;
+    margin-bottom: 3px;
+    color: #222222;
+    font-size: 11px;
+}
+
+.contact-btn small {
+    color: #999999;
+    font-size: 9px;
+}
+
+.contact-btn b {
+    color: #777777;
+    font-size: 16px;
+}
+
+/* =========================================================
+   ADMIN
+========================================================= */
+
+.admin-entry {
+    padding-bottom: 10px;
+}
+
+.admin-entry button {
+    width: 100%;
+    min-height: 58px;
+    padding: 9px 11px;
+    border: 1px solid #eeeeee;
+    border-radius: 13px;
+    background: #fafafa;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+}
+
+.admin-entry button>span {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 9px;
+    background: #eeeeee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+}
+
+.admin-entry button>div {
+    min-width: 0;
+    flex: 1;
+}
+
+.admin-entry strong {
+    display: block;
+    margin-bottom: 3px;
+    color: #333333;
+    font-size: 10px;
+}
+
+.admin-entry small {
+    color: #999999;
+    font-size: 8px;
+}
+
+.admin-entry b {
+    color: #777777;
+    font-size: 16px;
+}
+
+/* =========================================================
+   SMALL SCREENS
+========================================================= */
+
+@media (max-width: 360px) {
+    .profile-page {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    .services-list {
+        gap: 5px;
+    }
+
+    .services-list>div {
+        min-height: 64px;
+    }
+
+    .services-list p {
+        font-size: 7px;
+    }
+}

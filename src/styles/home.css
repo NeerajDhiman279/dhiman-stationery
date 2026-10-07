@@ -1,0 +1,175 @@
+/* =========================================================
+   DHIMAN STATIONERY — HOME PAGE
+========================================================= */
+
+.home-page {
+    min-height: 100vh;
+    padding: 0 16px 92px;
+    background: #ffffff;
+}
+
+/* =========================================================
+   CATEGORIES
+========================================================= */
+
+.categories-section {
+    margin-bottom: 24px;
+}
+
+.section-heading {
+    min-height: 42px;
+    margin-bottom: 13px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.section-heading h2 {
+    margin-bottom: 5px;
+    color: #111111;
+    font-size: 18px;
+    line-height: 1.2;
+    font-weight: 600;
+}
+
+.categories-subtitle {
+    color: #999999;
+    font-size: 10px;
+}
+
+.section-heading button {
+    border: 0;
+    background: transparent;
+    color: #555555;
+    font-size: 11px;
+    padding: 5px 0;
+}
+
+.categories-list {
+    display: flex;
+    gap: 9px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+}
+
+.categories-list::-webkit-scrollbar {
+    display: none;
+}
+
+/* =========================================================
+   PRODUCTS
+========================================================= */
+
+.products-section {
+    margin-bottom: 20px;
+}
+
+.products-heading {
+    min-height: 42px;
+    margin-bottom: 13px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.products-heading h2 {
+    margin-bottom: 5px;
+    color: #111111;
+    font-size: 18px;
+    line-height: 1.2;
+    font-weight: 600;
+}
+
+.products-heading p {
+    color: #999999;
+    font-size: 10px;
+}
+
+.product-sort {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+}
+
+.product-sort select {
+    width: 102px;
+    height: 36px;
+    padding: 0 9px;
+    border: 1px solid #e8e8e8;
+    border-radius: 10px;
+    outline: 0;
+    background: #ffffff;
+    color: #333333;
+    font-size: 11px;
+}
+
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 11px;
+}
+
+/* =========================================================
+   EMPTY SEARCH
+========================================================= */
+
+.home-page .empty-cart {
+    min-height: 45vh;
+    padding: 35px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.home-page .empty-cart-icon {
+    width: 76px;
+    height: 76px;
+    margin-bottom: 16px;
+    border-radius: 50%;
+    background: #f5f5f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+}
+
+.home-page .empty-cart h2 {
+    margin-bottom: 7px;
+    font-size: 18px;
+}
+
+.home-page .empty-cart p {
+    margin-bottom: 20px;
+    color: #777777;
+    font-size: 12px;
+}
+
+.primary-btn {
+    height: 44px;
+    padding: 0 20px;
+    border: 0;
+    border-radius: 11px;
+    background: #111111;
+    color: #ffffff;
+    font-size: 12px;
+}
+
+/* =========================================================
+   HOME MOBILE
+========================================================= */
+
+@media (max-width: 360px) {
+    .home-page {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    .product-grid {
+        gap: 8px;
+    }
+}

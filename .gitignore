@@ -12,7 +12,7 @@ dist
 dist-ssr
 *.local
 node_modules/
-.env
+.envS
 server/.env
 dist/
 # Editor directories and files

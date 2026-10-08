@@ -523,6 +523,7 @@ app.post("/verify-payment", (req, res) => {
 
 /* =========================
    CREATE ORDER
+   + STOCK MANAGEMENT
    OLD + API ROUTE
 ========================= */
 
@@ -555,6 +556,71 @@ async function createOrder(req, res) {
         }
 
         await client.query("BEGIN");
+
+        /* =========================
+           CHECK + REDUCE STOCK
+        ========================= */
+
+        for (const item of items) {
+            const productId = Number(item.id);
+            const quantity = Number(item.quantity);
+
+            if (
+                !Number.isInteger(productId) ||
+                !Number.isInteger(quantity) ||
+                quantity <= 0
+            ) {
+                throw new Error(
+                    `Invalid product or quantity for ${item.name || "product"}`
+                );
+            }
+
+            const productResult = await client.query(
+                `
+                SELECT
+                    id,
+                    name,
+                    price,
+                    stock
+                FROM products
+                WHERE id = $1
+                FOR UPDATE
+                `,
+                [productId]
+            );
+
+            if (productResult.rows.length === 0) {
+                throw new Error(
+                    `Product not found: ${item.name || productId}`
+                );
+            }
+
+            const product = productResult.rows[0];
+
+            if (product.stock < quantity) {
+                throw new Error(
+                    `Not enough stock for ${product.name}. Available stock: ${product.stock}`
+                );
+            }
+
+            await client.query(
+                `
+                UPDATE products
+                SET
+                    stock = stock - $1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2
+                `,
+                [
+                    quantity,
+                    productId
+                ]
+            );
+        }
+
+        /* =========================
+           CREATE ORDER
+        ========================= */
 
         await client.query(
             `
@@ -589,6 +655,10 @@ async function createOrder(req, res) {
                 customer.razorpaySignature || null
             ]
         );
+
+        /* =========================
+           SAVE ORDER ITEMS
+        ========================= */
 
         for (const item of items) {
             await client.query(
@@ -627,7 +697,7 @@ async function createOrder(req, res) {
 
         res.status(500).json({
             success: false,
-            message: "Unable to create order"
+            message: error.message || "Unable to create order"
         });
 
     } finally {

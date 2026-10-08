@@ -137,8 +137,7 @@ function Checkout({
 
             // Create Razorpay Order
             const response =
-                await fetch(
-                    "http://localhost:5000/create-order",
+                await fetch("https://dhiman-stationery-server.onrender.com/create-order",
                     {
                         method: "POST",
 
@@ -221,8 +220,7 @@ function Checkout({
                             // to backend for verification
 
                             const verifyResponse =
-                                await fetch(
-                                    "http://localhost:5000/verify-payment",
+                                await fetch("https://dhiman-stationery-server.onrender.com/verify-payment",
                                     {
                                         method: "POST",
 

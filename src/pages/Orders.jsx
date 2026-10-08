@@ -41,25 +41,22 @@ function Orders({ orders, goBack, openOrder }) {
                             order.items?.reduce(
                                 (sum, item) =>
                                     sum +
-                                    Number(
-                                        item.quantity || 0
-                                    ),
+                                    Number(item.quantity || 0),
                                 0
                             ) || 0;
 
-                        const orderDate =
-                            order.createdAt
-                                ? new Date(
-                                    order.createdAt
-                                ).toLocaleDateString(
-                                    "en-IN",
-                                    {
-                                        day: "2-digit",
-                                        month: "short",
-                                        year: "numeric"
-                                    }
-                                )
-                                : "";
+                        const orderDate = order.createdAt
+                            ? new Date(
+                                order.createdAt
+                            ).toLocaleDateString(
+                                "en-IN",
+                                {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric"
+                                }
+                            )
+                            : "";
 
                         const orderStatus =
                             order.status || "Pending";
@@ -99,7 +96,7 @@ function Orders({ orders, goBack, openOrder }) {
                                     </p>
 
                                     <strong className="cart-price">
-                                        ₹{order.total}
+                                        ₹{Number(order.total || 0).toFixed(2)}
                                     </strong>
                                 </div>
 

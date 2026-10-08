@@ -37,6 +37,199 @@ const razorpay = new Razorpay({
 });
 
 /* =========================
+   ADMIN AUTHENTICATION
+========================= */
+
+function createAdminToken() {
+    const payload = {
+        role: "admin",
+        expiresAt: Date.now() + (12 * 60 * 60 * 1000)
+    };
+
+    const payloadString = Buffer
+        .from(JSON.stringify(payload))
+        .toString("base64url");
+
+    const signature = crypto
+        .createHmac(
+            "sha256",
+            process.env.ADMIN_SECRET
+        )
+        .update(payloadString)
+        .digest("base64url");
+
+    return `${payloadString}.${signature}`;
+}
+
+function verifyAdminToken(token) {
+    try {
+        if (!token || !process.env.ADMIN_SECRET) {
+            return false;
+        }
+
+        const parts = token.split(".");
+
+        if (parts.length !== 2) {
+            return false;
+        }
+
+        const [payloadString, receivedSignature] = parts;
+
+        const expectedSignature = crypto
+            .createHmac(
+                "sha256",
+                process.env.ADMIN_SECRET
+            )
+            .update(payloadString)
+            .digest("base64url");
+
+        const receivedBuffer =
+            Buffer.from(receivedSignature);
+
+        const expectedBuffer =
+            Buffer.from(expectedSignature);
+
+        if (
+            receivedBuffer.length !==
+            expectedBuffer.length
+        ) {
+            return false;
+        }
+
+        if (
+            !crypto.timingSafeEqual(
+                receivedBuffer,
+                expectedBuffer
+            )
+        ) {
+            return false;
+        }
+
+        const payload = JSON.parse(
+            Buffer
+                .from(payloadString, "base64url")
+                .toString("utf8")
+        );
+
+        if (payload.role !== "admin") {
+            return false;
+        }
+
+        if (
+            !payload.expiresAt ||
+            Date.now() > payload.expiresAt
+        ) {
+            return false;
+        }
+
+        return true;
+
+    } catch (error) {
+        return false;
+    }
+}
+
+/* =========================
+   ADMIN LOGIN
+========================= */
+
+app.post("/admin/login", (req, res) => {
+    try {
+        const { password } = req.body;
+
+        if (!process.env.ADMIN_PASSWORD) {
+            return res.status(500).json({
+                success: false,
+                message: "Admin password is not configured on server"
+            });
+        }
+
+        if (!password) {
+            return res.status(400).json({
+                success: false,
+                message: "Password is required"
+            });
+        }
+
+        const passwordBuffer =
+            Buffer.from(String(password));
+
+        const adminPasswordBuffer =
+            Buffer.from(process.env.ADMIN_PASSWORD);
+
+        if (
+            passwordBuffer.length !==
+            adminPasswordBuffer.length
+        ) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid admin password"
+            });
+        }
+
+        const passwordMatch =
+            crypto.timingSafeEqual(
+                passwordBuffer,
+                adminPasswordBuffer
+            );
+
+        if (!passwordMatch) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid admin password"
+            });
+        }
+
+        const token = createAdminToken();
+
+        res.json({
+            success: true,
+            message: "Admin login successful",
+            token
+        });
+
+    } catch (error) {
+        console.error(
+            "Admin login error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message: "Unable to login"
+        });
+    }
+});
+
+/* =========================
+   ADMIN AUTH MIDDLEWARE
+========================= */
+
+function requireAdmin(req, res, next) {
+    const authHeader =
+        req.headers.authorization || "";
+
+    if (!authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({
+            success: false,
+            message: "Admin authentication required"
+        });
+    }
+
+    const token =
+        authHeader.substring(7);
+
+    if (!verifyAdminToken(token)) {
+        return res.status(401).json({
+            success: false,
+            message: "Invalid or expired admin token"
+        });
+    }
+
+    next();
+}
+
+/* =========================
    DATABASE INITIALIZATION
 ========================= */
 
@@ -80,18 +273,11 @@ async function initializeDatabase() {
             );
         `);
 
-        /*
-         * Existing database ke liye bhi column add karega.
-         * Agar column already hai to kuch nahi karega.
-         */
         await pool.query(`
             ALTER TABLE orders
             ADD COLUMN IF NOT EXISTS customer_token TEXT;
         `);
 
-        /*
-         * Customer token ko unique banate hain.
-         */
         await pool.query(`
             CREATE UNIQUE INDEX IF NOT EXISTS
             orders_customer_token_unique
@@ -102,7 +288,9 @@ async function initializeDatabase() {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS order_items (
                 id SERIAL PRIMARY KEY,
-                order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+                order_id TEXT NOT NULL
+                    REFERENCES orders(id)
+                    ON DELETE CASCADE,
                 product_id INTEGER,
                 product_name TEXT NOT NULL,
                 price NUMERIC(10, 2) NOT NULL,
@@ -113,7 +301,11 @@ async function initializeDatabase() {
         console.log("Database tables ready");
 
     } catch (error) {
-        console.error("Database initialization error:", error);
+        console.error(
+            "Database initialization error:",
+            error
+        );
+
         throw error;
     }
 }
@@ -146,7 +338,10 @@ app.get("/db-test", async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Database test error:", error);
+        console.error(
+            "Database test error:",
+            error
+        );
 
         res.status(500).json({
             success: false,
@@ -157,6 +352,7 @@ app.get("/db-test", async (req, res) => {
 
 /* =========================
    GET PRODUCTS
+   PUBLIC
 ========================= */
 
 async function getProducts(req, res) {
@@ -186,7 +382,10 @@ async function getProducts(req, res) {
         });
 
     } catch (error) {
-        console.error("Get products error:", error);
+        console.error(
+            "Get products error:",
+            error
+        );
 
         res.status(500).json({
             success: false,
@@ -200,6 +399,7 @@ app.get("/api/products", getProducts);
 
 /* =========================
    ADD PRODUCT
+   ADMIN ONLY
 ========================= */
 
 async function addProduct(req, res) {
@@ -223,7 +423,8 @@ async function addProduct(req, res) {
         if (!id || !name || price === undefined) {
             return res.status(400).json({
                 success: false,
-                message: "Product id, name and price are required"
+                message:
+                    "Product id, name and price are required"
             });
         }
 
@@ -245,7 +446,8 @@ async function addProduct(req, res) {
                 image
             )
             VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+                $1,$2,$3,$4,$5,$6,$7,
+                $8,$9,$10,$11,$12,$13
             )
             RETURNING
                 id,
@@ -285,7 +487,10 @@ async function addProduct(req, res) {
         });
 
     } catch (error) {
-        console.error("Add product error:", error);
+        console.error(
+            "Add product error:",
+            error
+        );
 
         res.status(500).json({
             success: false,
@@ -294,16 +499,27 @@ async function addProduct(req, res) {
     }
 }
 
-app.post("/products", addProduct);
-app.post("/api/products", addProduct);
+app.post(
+    "/products",
+    requireAdmin,
+    addProduct
+);
+
+app.post(
+    "/api/products",
+    requireAdmin,
+    addProduct
+);
 
 /* =========================
    UPDATE PRODUCT
+   ADMIN ONLY
 ========================= */
 
 async function updateProduct(req, res) {
     try {
-        const productId = Number(req.params.id);
+        const productId =
+            Number(req.params.id);
 
         const {
             name,
@@ -390,7 +606,10 @@ async function updateProduct(req, res) {
         });
 
     } catch (error) {
-        console.error("Update product error:", error);
+        console.error(
+            "Update product error:",
+            error
+        );
 
         res.status(500).json({
             success: false,
@@ -399,16 +618,27 @@ async function updateProduct(req, res) {
     }
 }
 
-app.put("/products/:id", updateProduct);
-app.put("/api/products/:id", updateProduct);
+app.put(
+    "/products/:id",
+    requireAdmin,
+    updateProduct
+);
+
+app.put(
+    "/api/products/:id",
+    requireAdmin,
+    updateProduct
+);
 
 /* =========================
    DELETE PRODUCT
+   ADMIN ONLY
 ========================= */
 
 async function deleteProduct(req, res) {
     try {
-        const productId = Number(req.params.id);
+        const productId =
+            Number(req.params.id);
 
         if (!Number.isInteger(productId)) {
             return res.status(400).json({
@@ -418,7 +648,11 @@ async function deleteProduct(req, res) {
         }
 
         const result = await pool.query(
-            "DELETE FROM products WHERE id = $1 RETURNING id",
+            `
+            DELETE FROM products
+            WHERE id = $1
+            RETURNING id
+            `,
             [productId]
         );
 
@@ -431,21 +665,35 @@ async function deleteProduct(req, res) {
 
         res.json({
             success: true,
-            message: "Product deleted successfully"
+            message:
+                "Product deleted successfully"
         });
 
     } catch (error) {
-        console.error("Delete product error:", error);
+        console.error(
+            "Delete product error:",
+            error
+        );
 
         res.status(500).json({
             success: false,
-            message: "Unable to delete product"
+            message:
+                "Unable to delete product"
         });
     }
 }
 
-app.delete("/products/:id", deleteProduct);
-app.delete("/api/products/:id", deleteProduct);
+app.delete(
+    "/products/:id",
+    requireAdmin,
+    deleteProduct
+);
+
+app.delete(
+    "/api/products/:id",
+    requireAdmin,
+    deleteProduct
+);
 
 /* =========================
    CREATE RAZORPAY ORDER
@@ -463,12 +711,19 @@ app.post("/create-order", async (req, res) => {
         }
 
         const options = {
-            amount: Math.round(Number(amount) * 100),
+            amount:
+                Math.round(
+                    Number(amount) * 100
+                ),
             currency: "INR",
-            receipt: "DS_" + Date.now()
+            receipt:
+                "DS_" + Date.now()
         };
 
-        const order = await razorpay.orders.create(options);
+        const order =
+            await razorpay.orders.create(
+                options
+            );
 
         res.json({
             success: true,
@@ -476,11 +731,15 @@ app.post("/create-order", async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Razorpay Error:", error);
+        console.error(
+            "Razorpay Error:",
+            error
+        );
 
         res.status(500).json({
             success: false,
-            message: "Unable to create Razorpay order"
+            message:
+                "Unable to create Razorpay order"
         });
     }
 });
@@ -489,62 +748,69 @@ app.post("/create-order", async (req, res) => {
    VERIFY RAZORPAY PAYMENT
 ========================= */
 
-app.post("/verify-payment", (req, res) => {
-    const {
-        razorpay_order_id,
-        razorpay_payment_id,
-        razorpay_signature
-    } = req.body;
+app.post(
+    "/verify-payment",
+    (req, res) => {
+        const {
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature
+        } = req.body;
 
-    if (
-        !razorpay_order_id ||
-        !razorpay_payment_id ||
-        !razorpay_signature
-    ) {
-        return res.status(400).json({
-            success: false,
-            message: "Missing payment details"
+        if (
+            !razorpay_order_id ||
+            !razorpay_payment_id ||
+            !razorpay_signature
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Missing payment details"
+            });
+        }
+
+        const body =
+            razorpay_order_id +
+            "|" +
+            razorpay_payment_id;
+
+        const expectedSignature =
+            crypto
+                .createHmac(
+                    "sha256",
+                    process.env.RAZORPAY_KEY_SECRET
+                )
+                .update(body)
+                .digest("hex");
+
+        const isValid =
+            expectedSignature ===
+            razorpay_signature;
+
+        if (!isValid) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Invalid payment signature"
+            });
+        }
+
+        res.json({
+            success: true,
+            message:
+                "Payment verified successfully"
         });
     }
-
-    const body =
-        razorpay_order_id +
-        "|" +
-        razorpay_payment_id;
-
-    const expectedSignature =
-        crypto
-            .createHmac(
-                "sha256",
-                process.env.RAZORPAY_KEY_SECRET
-            )
-            .update(body)
-            .digest("hex");
-
-    const isValid =
-        expectedSignature === razorpay_signature;
-
-    if (!isValid) {
-        return res.status(400).json({
-            success: false,
-            message: "Invalid payment signature"
-        });
-    }
-
-    res.json({
-        success: true,
-        message: "Payment verified successfully"
-    });
-});
+);
 
 /* =========================
    CREATE ORDER
-   + STOCK MANAGEMENT
-   + CUSTOMER TOKEN
+   PUBLIC CUSTOMER API
 ========================= */
 
 async function createOrder(req, res) {
-    const client = await pool.connect();
+    const client =
+        await pool.connect();
 
     try {
         const {
@@ -567,17 +833,15 @@ async function createOrder(req, res) {
         ) {
             return res.status(400).json({
                 success: false,
-                message: "Invalid order data"
+                message:
+                    "Invalid order data"
             });
         }
 
-        /*
-         * Unique secret token.
-         * Customer frontend ko ye token milega.
-         */
-        const customerToken = crypto
-            .randomBytes(32)
-            .toString("hex");
+        const customerToken =
+            crypto
+                .randomBytes(32)
+                .toString("hex");
 
         await client.query("BEGIN");
 
@@ -586,8 +850,11 @@ async function createOrder(req, res) {
         ========================= */
 
         for (const item of items) {
-            const productId = Number(item.id);
-            const quantity = Number(item.quantity);
+            const productId =
+                Number(item.id);
+
+            const quantity =
+                Number(item.quantity);
 
             if (
                 !Number.isInteger(productId) ||
@@ -595,35 +862,45 @@ async function createOrder(req, res) {
                 quantity <= 0
             ) {
                 throw new Error(
-                    `Invalid product or quantity for ${item.name || "product"}`
+                    `Invalid product or quantity for ${item.name || "product"
+                    }`
                 );
             }
 
-            const productResult = await client.query(
-                `
-                SELECT
-                    id,
-                    name,
-                    price,
-                    stock
-                FROM products
-                WHERE id = $1
-                FOR UPDATE
-                `,
-                [productId]
-            );
+            const productResult =
+                await client.query(
+                    `
+                    SELECT
+                        id,
+                        name,
+                        price,
+                        stock
+                    FROM products
+                    WHERE id = $1
+                    FOR UPDATE
+                    `,
+                    [productId]
+                );
 
-            if (productResult.rows.length === 0) {
+            if (
+                productResult.rows.length === 0
+            ) {
                 throw new Error(
-                    `Product not found: ${item.name || productId}`
+                    `Product not found: ${item.name || productId
+                    }`
                 );
             }
 
-            const product = productResult.rows[0];
+            const product =
+                productResult.rows[0];
 
-            if (product.stock < quantity) {
+            if (
+                product.stock < quantity
+            ) {
                 throw new Error(
-                    `Not enough stock for ${product.name}. Available stock: ${product.stock}`
+                    `Not enough stock for ${product.name
+                    }. Available stock: ${product.stock
+                    }`
                 );
             }
 
@@ -663,7 +940,8 @@ async function createOrder(req, res) {
                 customer_token
             )
             VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+                $1,$2,$3,$4,$5,$6,$7,
+                $8,$9,$10,$11,$12
             )
             `,
             [
@@ -675,9 +953,12 @@ async function createOrder(req, res) {
                 customer.payment || "cod",
                 customer.paymentStatus || null,
                 "Pending",
-                customer.razorpayPaymentId || null,
-                customer.razorpayOrderId || null,
-                customer.razorpaySignature || null,
+                customer.razorpayPaymentId ||
+                null,
+                customer.razorpayOrderId ||
+                null,
+                customer.razorpaySignature ||
+                null,
                 customerToken
             ]
         );
@@ -710,13 +991,10 @@ async function createOrder(req, res) {
 
         await client.query("COMMIT");
 
-        /*
-         * Token customer ko return kar rahe hain.
-         * Frontend is token ko localStorage mein save karega.
-         */
         res.status(201).json({
             success: true,
-            message: "Order created successfully",
+            message:
+                "Order created successfully",
             orderId: id,
             customerToken
         });
@@ -724,11 +1002,16 @@ async function createOrder(req, res) {
     } catch (error) {
         await client.query("ROLLBACK");
 
-        console.error("Create order error:", error);
+        console.error(
+            "Create order error:",
+            error
+        );
 
         res.status(500).json({
             success: false,
-            message: error.message || "Unable to create order"
+            message:
+                error.message ||
+                "Unable to create order"
         });
 
     } finally {
@@ -736,27 +1019,35 @@ async function createOrder(req, res) {
     }
 }
 
-app.post("/orders", createOrder);
-app.post("/api/orders", createOrder);
+app.post(
+    "/orders",
+    createOrder
+);
+
+app.post(
+    "/api/orders",
+    createOrder
+);
 
 /* =========================
    FORMAT ORDER
 ========================= */
 
 async function formatOrder(order) {
-    const itemsResult = await pool.query(
-        `
-        SELECT
-            product_id AS id,
-            product_name AS name,
-            price,
-            quantity
-        FROM order_items
-        WHERE order_id = $1
-        ORDER BY id ASC
-        `,
-        [order.id]
-    );
+    const itemsResult =
+        await pool.query(
+            `
+            SELECT
+                product_id AS id,
+                product_name AS name,
+                price,
+                quantity
+            FROM order_items
+            WHERE order_id = $1
+            ORDER BY id ASC
+            `,
+            [order.id]
+        );
 
     return {
         id: order.id,
@@ -766,7 +1057,8 @@ async function formatOrder(order) {
             phone: order.phone,
             address: order.address,
             payment: order.payment,
-            paymentStatus: order.payment_status,
+            paymentStatus:
+                order.payment_status,
             razorpayPaymentId:
                 order.razorpay_payment_id,
             razorpayOrderId:
@@ -777,46 +1069,55 @@ async function formatOrder(order) {
 
         items: itemsResult.rows,
 
-        total: Number(order.total),
+        total:
+            Number(order.total),
 
-        status: order.status,
+        status:
+            order.status,
 
-        createdAt: order.created_at
+        createdAt:
+            order.created_at
     };
 }
 
 /* =========================
    GET ALL ORDERS
-   ADMIN / INTERNAL
+   ADMIN ONLY
 ========================= */
 
 async function getOrders(req, res) {
     try {
-        const ordersResult = await pool.query(`
-            SELECT
-                id,
-                customer_name,
-                phone,
-                address,
-                total,
-                payment,
-                payment_status,
-                status,
-                razorpay_payment_id,
-                razorpay_order_id,
-                razorpay_signature,
-                created_at
-            FROM orders
-            ORDER BY created_at DESC
-        `);
+        const ordersResult =
+            await pool.query(`
+                SELECT
+                    id,
+                    customer_name,
+                    phone,
+                    address,
+                    total,
+                    payment,
+                    payment_status,
+                    status,
+                    razorpay_payment_id,
+                    razorpay_order_id,
+                    razorpay_signature,
+                    created_at
+                FROM orders
+                ORDER BY created_at DESC
+            `);
 
         const orders = [];
 
-        for (const order of ordersResult.rows) {
+        for (
+            const order
+            of ordersResult.rows
+        ) {
             const formattedOrder =
                 await formatOrder(order);
 
-            orders.push(formattedOrder);
+            orders.push(
+                formattedOrder
+            );
         }
 
         res.json({
@@ -825,65 +1126,91 @@ async function getOrders(req, res) {
         });
 
     } catch (error) {
-        console.error("Get orders error:", error);
+        console.error(
+            "Get orders error:",
+            error
+        );
 
         res.status(500).json({
             success: false,
-            message: "Unable to fetch orders"
+            message:
+                "Unable to fetch orders"
         });
     }
 }
 
-app.get("/orders", getOrders);
-app.get("/api/orders", getOrders);
+app.get(
+    "/orders",
+    requireAdmin,
+    getOrders
+);
+
+app.get(
+    "/api/orders",
+    requireAdmin,
+    getOrders
+);
 
 /* =========================
    GET CUSTOMER ORDERS
    TOKEN BASED
+   PUBLIC WITH CUSTOMER TOKEN
 ========================= */
 
-async function getCustomerOrders(req, res) {
+async function getCustomerOrders(
+    req,
+    res
+) {
     try {
         const customerToken =
-            req.headers["x-customer-token"] ||
+            req.headers[
+            "x-customer-token"
+            ] ||
             req.query.token;
 
         if (!customerToken) {
             return res.status(401).json({
                 success: false,
-                message: "Customer token is required"
+                message:
+                    "Customer token is required"
             });
         }
 
-        const ordersResult = await pool.query(
-            `
-            SELECT
-                id,
-                customer_name,
-                phone,
-                address,
-                total,
-                payment,
-                payment_status,
-                status,
-                razorpay_payment_id,
-                razorpay_order_id,
-                razorpay_signature,
-                created_at
-            FROM orders
-            WHERE customer_token = $1
-            ORDER BY created_at DESC
-            `,
-            [customerToken]
-        );
+        const ordersResult =
+            await pool.query(
+                `
+                SELECT
+                    id,
+                    customer_name,
+                    phone,
+                    address,
+                    total,
+                    payment,
+                    payment_status,
+                    status,
+                    razorpay_payment_id,
+                    razorpay_order_id,
+                    razorpay_signature,
+                    created_at
+                FROM orders
+                WHERE customer_token = $1
+                ORDER BY created_at DESC
+                `,
+                [customerToken]
+            );
 
         const orders = [];
 
-        for (const order of ordersResult.rows) {
+        for (
+            const order
+            of ordersResult.rows
+        ) {
             const formattedOrder =
                 await formatOrder(order);
 
-            orders.push(formattedOrder);
+            orders.push(
+                formattedOrder
+            );
         }
 
         res.json({
@@ -899,7 +1226,8 @@ async function getCustomerOrders(req, res) {
 
         res.status(500).json({
             success: false,
-            message: "Unable to fetch customer orders"
+            message:
+                "Unable to fetch customer orders"
         });
     }
 }
@@ -916,12 +1244,19 @@ app.get(
 
 /* =========================
    UPDATE ORDER STATUS
+   ADMIN ONLY
 ========================= */
 
-async function updateOrderStatus(req, res) {
+async function updateOrderStatus(
+    req,
+    res
+) {
     try {
-        const orderId = req.params.id;
-        const { status } = req.body;
+        const orderId =
+            req.params.id;
+
+        const { status } =
+            req.body;
 
         const allowedStatuses = [
             "Pending",
@@ -930,34 +1265,48 @@ async function updateOrderStatus(req, res) {
             "Delivered"
         ];
 
-        if (!allowedStatuses.includes(status)) {
+        if (
+            !allowedStatuses.includes(
+                status
+            )
+        ) {
             return res.status(400).json({
                 success: false,
-                message: "Invalid order status"
+                message:
+                    "Invalid order status"
             });
         }
 
-        const result = await pool.query(
-            `
-            UPDATE orders
-            SET status = $1
-            WHERE id = $2
-            RETURNING id, status
-            `,
-            [status, orderId]
-        );
+        const result =
+            await pool.query(
+                `
+                UPDATE orders
+                SET status = $1
+                WHERE id = $2
+                RETURNING id, status
+                `,
+                [
+                    status,
+                    orderId
+                ]
+            );
 
-        if (result.rows.length === 0) {
+        if (
+            result.rows.length === 0
+        ) {
             return res.status(404).json({
                 success: false,
-                message: "Order not found"
+                message:
+                    "Order not found"
             });
         }
 
         res.json({
             success: true,
-            message: "Order status updated",
-            order: result.rows[0]
+            message:
+                "Order status updated",
+            order:
+                result.rows[0]
         });
 
     } catch (error) {
@@ -968,18 +1317,21 @@ async function updateOrderStatus(req, res) {
 
         res.status(500).json({
             success: false,
-            message: "Unable to update order status"
+            message:
+                "Unable to update order status"
         });
     }
 }
 
 app.patch(
     "/orders/:id/status",
+    requireAdmin,
     updateOrderStatus
 );
 
 app.patch(
     "/api/orders/:id/status",
+    requireAdmin,
     updateOrderStatus
 );
 
@@ -987,17 +1339,21 @@ app.patch(
    START SERVER
 ========================= */
 
-const PORT = process.env.PORT || 5000;
+const PORT =
+    process.env.PORT || 5000;
 
 async function startServer() {
     try {
         await initializeDatabase();
 
-        app.listen(PORT, () => {
-            console.log(
-                `Payment server running on port ${PORT}`
-            );
-        });
+        app.listen(
+            PORT,
+            () => {
+                console.log(
+                    `Payment server running on port ${PORT}`
+                );
+            }
+        );
 
     } catch (error) {
         console.error(

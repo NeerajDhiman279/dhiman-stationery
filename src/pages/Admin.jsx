@@ -34,6 +34,69 @@ function Admin({
     });
 
     /* =========================
+       ADMIN TOKEN
+    ========================= */
+
+    function getAdminToken() {
+        return localStorage.getItem(
+            "dhiman_admin_token"
+        );
+    }
+
+    /* =========================
+       SECURE API REQUEST
+    ========================= */
+
+    async function adminFetch(url, options = {}) {
+        const token = getAdminToken();
+
+        if (!token) {
+            alert(
+                "Admin session expire ho gayi. Please login again."
+            );
+
+            logoutAdmin();
+            return null;
+        }
+
+        const headers = {
+            ...(options.body
+                ? {
+                    "Content-Type":
+                        "application/json"
+                }
+                : {}),
+            ...(options.headers || {}),
+            Authorization:
+                `Bearer ${token}`
+        };
+
+        const response = await fetch(
+            url,
+            {
+                ...options,
+                headers
+            }
+        );
+
+        if (response.status === 401) {
+            localStorage.removeItem(
+                "dhiman_admin_token"
+            );
+
+            alert(
+                "Admin session expire ho gayi. Please login again."
+            );
+
+            logoutAdmin();
+
+            return null;
+        }
+
+        return response;
+    }
+
+    /* =========================
        LOAD PRODUCTS
     ========================= */
 
@@ -79,20 +142,31 @@ function Admin({
         try {
             setLoadingOrders(true);
 
-            const response = await fetch(
-                `${API_URL}/api/orders`
-            );
+            const response =
+                await adminFetch(
+                    `${API_URL}/api/orders`
+                );
 
-            const data = await response.json();
+            if (!response) {
+                return;
+            }
 
-            if (!response.ok || !data.success) {
+            const data =
+                await response.json();
+
+            if (
+                !response.ok ||
+                !data.success
+            ) {
                 throw new Error(
                     data.message ||
                     "Unable to load orders"
                 );
             }
 
-            setOrders(data.orders || []);
+            setOrders(
+                data.orders || []
+            );
 
         } catch (error) {
             console.error(
@@ -122,54 +196,73 @@ function Admin({
        STATS
     ========================= */
 
-    const totalProducts = products.length;
+    const totalProducts =
+        products.length;
 
-    const totalStock = products.reduce(
-        (sum, product) =>
-            sum + Number(product.stock || 0),
-        0
-    );
+    const totalStock =
+        products.reduce(
+            (sum, product) =>
+                sum +
+                Number(
+                    product.stock || 0
+                ),
+            0
+        );
 
-    const outOfStock = products.filter(
-        (product) =>
-            Number(product.stock || 0) <= 0
-    ).length;
+    const outOfStock =
+        products.filter(
+            (product) =>
+                Number(
+                    product.stock || 0
+                ) <= 0
+        ).length;
 
-    const totalOrders = orders.length;
+    const totalOrders =
+        orders.length;
 
-    const totalSales = orders.reduce(
-        (sum, order) =>
-            sum + Number(order.total || 0),
-        0
-    );
+    const totalSales =
+        orders.reduce(
+            (sum, order) =>
+                sum +
+                Number(
+                    order.total || 0
+                ),
+            0
+        );
 
     /* =========================
        PRODUCT SEARCH
     ========================= */
 
-    const filteredProducts = useMemo(() => {
-        const value =
-            search.trim().toLowerCase();
+    const filteredProducts =
+        useMemo(() => {
+            const value =
+                search
+                    .trim()
+                    .toLowerCase();
 
-        if (!value) {
-            return products;
-        }
+            if (!value) {
+                return products;
+            }
 
-        return products.filter((product) =>
-            [
-                product.name,
-                product.brand,
-                product.category
-            ]
-                .filter(Boolean)
-                .some((item) =>
-                    item
-                        .toString()
-                        .toLowerCase()
-                        .includes(value)
-                )
-        );
-    }, [products, search]);
+            return products.filter(
+                (product) =>
+                    [
+                        product.name,
+                        product.brand,
+                        product.category
+                    ]
+                        .filter(Boolean)
+                        .some((item) =>
+                            item
+                                .toString()
+                                .toLowerCase()
+                                .includes(
+                                    value
+                                )
+                        )
+            );
+        }, [products, search]);
 
     /* =========================
        ADD PRODUCT MODAL
@@ -206,16 +299,31 @@ function Admin({
         setForm({
             name: product.name || "",
             brand: product.brand || "",
-            category: product.category || "Pens",
-            price: product.price ?? "",
-            oldPrice: product.oldPrice ?? "",
-            stock: product.stock ?? "",
-            unit: product.unit || "pieces",
-            discount: product.discount || "",
-            rating: product.rating ?? "4.5",
-            reviews: product.reviews ?? "0",
-            description: product.description || "",
-            image: product.image || ""
+            category:
+                product.category ||
+                "Pens",
+            price:
+                product.price ?? "",
+            oldPrice:
+                product.oldPrice ?? "",
+            stock:
+                product.stock ?? "",
+            unit:
+                product.unit ||
+                "pieces",
+            discount:
+                product.discount || "",
+            rating:
+                product.rating ??
+                "4.5",
+            reviews:
+                product.reviews ??
+                "0",
+            description:
+                product.description ||
+                "",
+            image:
+                product.image || ""
         });
 
         setShowModal(true);
@@ -258,7 +366,11 @@ function Admin({
             return;
         }
 
-        if (!file.type.startsWith("image/")) {
+        if (
+            !file.type.startsWith(
+                "image/"
+            )
+        ) {
             alert(
                 "Please select an image file"
             );
@@ -281,7 +393,8 @@ function Admin({
         reader.onload = () => {
             setForm((prev) => ({
                 ...prev,
-                image: reader.result
+                image:
+                    reader.result
             }));
         };
 
@@ -297,19 +410,22 @@ function Admin({
             return 1;
         }
 
-        const ids = products
-            .map((product) =>
-                Number(product.id)
-            )
-            .filter((id) =>
-                Number.isInteger(id)
-            );
+        const ids =
+            products
+                .map((product) =>
+                    Number(product.id)
+                )
+                .filter((id) =>
+                    Number.isInteger(id)
+                );
 
         if (!ids.length) {
             return 1;
         }
 
-        return Math.max(...ids) + 1;
+        return (
+            Math.max(...ids) + 1
+        );
     }
 
     /* =========================
@@ -359,8 +475,12 @@ function Admin({
 
             oldPrice:
                 form.oldPrice === ""
-                    ? Number(form.price)
-                    : Number(form.oldPrice),
+                    ? Number(
+                        form.price
+                    )
+                    : Number(
+                        form.oldPrice
+                    ),
 
             stock:
                 Number(form.stock),
@@ -373,10 +493,14 @@ function Admin({
                 "Available",
 
             rating:
-                Number(form.rating) || 0,
+                Number(
+                    form.rating
+                ) || 0,
 
             reviews:
-                Number(form.reviews) || 0,
+                Number(
+                    form.reviews
+                ) || 0,
 
             description:
                 form.description.trim(),
@@ -393,43 +517,37 @@ function Admin({
             /* EDIT */
 
             if (editingProduct) {
-                response = await fetch(
-                    `${API_URL}/api/products/${editingProduct.id}`,
-                    {
-                        method: "PUT",
-
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body:
-                            JSON.stringify(
-                                productData
-                            )
-                    }
-                );
+                response =
+                    await adminFetch(
+                        `${API_URL}/api/products/${editingProduct.id}`,
+                        {
+                            method: "PUT",
+                            body:
+                                JSON.stringify(
+                                    productData
+                                )
+                        }
+                    );
             }
 
             /* ADD */
 
             else {
-                response = await fetch(
-                    `${API_URL}/api/products`,
-                    {
-                        method: "POST",
+                response =
+                    await adminFetch(
+                        `${API_URL}/api/products`,
+                        {
+                            method: "POST",
+                            body:
+                                JSON.stringify(
+                                    productData
+                                )
+                        }
+                    );
+            }
 
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body:
-                            JSON.stringify(
-                                productData
-                            )
-                    }
-                );
+            if (!response) {
+                return;
             }
 
             const data =
@@ -496,12 +614,16 @@ function Admin({
             setLoading(true);
 
             const response =
-                await fetch(
+                await adminFetch(
                     `${API_URL}/api/products/${id}`,
                     {
                         method: "DELETE"
                     }
                 );
+
+            if (!response) {
+                return;
+            }
 
             const data =
                 await response.json();
@@ -558,7 +680,9 @@ function Admin({
         }
 
         const currentStock =
-            Number(product.stock || 0);
+            Number(
+                product.stock || 0
+            );
 
         const newStock =
             Math.max(
@@ -577,13 +701,16 @@ function Admin({
                 product.category || "",
 
             price:
-                Number(product.price || 0),
+                Number(
+                    product.price || 0
+                ),
 
             oldPrice:
                 product.oldPrice === ""
                     ? null
                     : Number(
-                        product.oldPrice || 0
+                        product.oldPrice ||
+                        0
                     ),
 
             stock:
@@ -617,22 +744,20 @@ function Admin({
 
         try {
             const response =
-                await fetch(
+                await adminFetch(
                     `${API_URL}/api/products/${id}`,
                     {
                         method: "PUT",
-
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
                         body:
                             JSON.stringify(
                                 productData
                             )
                     }
                 );
+
+            if (!response) {
+                return;
+            }
 
             const data =
                 await response.json();
@@ -656,6 +781,7 @@ function Admin({
             );
 
             alert(
+                error.message ||
                 "Stock update nahi ho paaya."
             );
         }
@@ -671,16 +797,10 @@ function Admin({
     ) {
         try {
             const response =
-                await fetch(
+                await adminFetch(
                     `${API_URL}/api/orders/${orderId}/status`,
                     {
                         method: "PATCH",
-
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
                         body:
                             JSON.stringify({
                                 status:
@@ -688,6 +808,10 @@ function Admin({
                             })
                     }
                 );
+
+            if (!response) {
+                return;
+            }
 
             const data =
                 await response.json();
@@ -702,18 +826,23 @@ function Admin({
                 );
             }
 
-            setOrders((prevOrders) =>
-                prevOrders.map(
-                    (order) =>
-                        String(order.id) ===
-                            String(orderId)
-                            ? {
-                                ...order,
-                                status:
-                                    newStatus
-                            }
-                            : order
-                )
+            setOrders(
+                (prevOrders) =>
+                    prevOrders.map(
+                        (order) =>
+                            String(
+                                order.id
+                            ) ===
+                                String(
+                                    orderId
+                                )
+                                ? {
+                                    ...order,
+                                    status:
+                                        newStatus
+                                }
+                                : order
+                    )
             );
 
         } catch (error) {
@@ -723,6 +852,7 @@ function Admin({
             );
 
             alert(
+                error.message ||
                 "Order status update nahi ho paaya."
             );
         }

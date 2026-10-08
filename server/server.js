@@ -75,8 +75,28 @@ async function initializeDatabase() {
                 razorpay_payment_id TEXT,
                 razorpay_order_id TEXT,
                 razorpay_signature TEXT,
+                customer_token TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+        `);
+
+        /*
+         * Existing database ke liye bhi column add karega.
+         * Agar column already hai to kuch nahi karega.
+         */
+        await pool.query(`
+            ALTER TABLE orders
+            ADD COLUMN IF NOT EXISTS customer_token TEXT;
+        `);
+
+        /*
+         * Customer token ko unique banate hain.
+         */
+        await pool.query(`
+            CREATE UNIQUE INDEX IF NOT EXISTS
+            orders_customer_token_unique
+            ON orders(customer_token)
+            WHERE customer_token IS NOT NULL;
         `);
 
         await pool.query(`
@@ -137,7 +157,6 @@ app.get("/db-test", async (req, res) => {
 
 /* =========================
    GET PRODUCTS
-   OLD + API ROUTE
 ========================= */
 
 async function getProducts(req, res) {
@@ -181,7 +200,6 @@ app.get("/api/products", getProducts);
 
 /* =========================
    ADD PRODUCT
-   OLD + API ROUTE
 ========================= */
 
 async function addProduct(req, res) {
@@ -281,7 +299,6 @@ app.post("/api/products", addProduct);
 
 /* =========================
    UPDATE PRODUCT
-   OLD + API ROUTE
 ========================= */
 
 async function updateProduct(req, res) {
@@ -387,7 +404,6 @@ app.put("/api/products/:id", updateProduct);
 
 /* =========================
    DELETE PRODUCT
-   OLD + API ROUTE
 ========================= */
 
 async function deleteProduct(req, res) {
@@ -524,7 +540,7 @@ app.post("/verify-payment", (req, res) => {
 /* =========================
    CREATE ORDER
    + STOCK MANAGEMENT
-   OLD + API ROUTE
+   + CUSTOMER TOKEN
 ========================= */
 
 async function createOrder(req, res) {
@@ -554,6 +570,14 @@ async function createOrder(req, res) {
                 message: "Invalid order data"
             });
         }
+
+        /*
+         * Unique secret token.
+         * Customer frontend ko ye token milega.
+         */
+        const customerToken = crypto
+            .randomBytes(32)
+            .toString("hex");
 
         await client.query("BEGIN");
 
@@ -635,10 +659,11 @@ async function createOrder(req, res) {
                 status,
                 razorpay_payment_id,
                 razorpay_order_id,
-                razorpay_signature
+                razorpay_signature,
+                customer_token
             )
             VALUES (
-                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
             )
             `,
             [
@@ -652,7 +677,8 @@ async function createOrder(req, res) {
                 "Pending",
                 customer.razorpayPaymentId || null,
                 customer.razorpayOrderId || null,
-                customer.razorpaySignature || null
+                customer.razorpaySignature || null,
+                customerToken
             ]
         );
 
@@ -684,10 +710,15 @@ async function createOrder(req, res) {
 
         await client.query("COMMIT");
 
+        /*
+         * Token customer ko return kar rahe hain.
+         * Frontend is token ko localStorage mein save karega.
+         */
         res.status(201).json({
             success: true,
             message: "Order created successfully",
-            orderId: id
+            orderId: id,
+            customerToken
         });
 
     } catch (error) {
@@ -709,8 +740,54 @@ app.post("/orders", createOrder);
 app.post("/api/orders", createOrder);
 
 /* =========================
+   FORMAT ORDER
+========================= */
+
+async function formatOrder(order) {
+    const itemsResult = await pool.query(
+        `
+        SELECT
+            product_id AS id,
+            product_name AS name,
+            price,
+            quantity
+        FROM order_items
+        WHERE order_id = $1
+        ORDER BY id ASC
+        `,
+        [order.id]
+    );
+
+    return {
+        id: order.id,
+
+        customer: {
+            name: order.customer_name,
+            phone: order.phone,
+            address: order.address,
+            payment: order.payment,
+            paymentStatus: order.payment_status,
+            razorpayPaymentId:
+                order.razorpay_payment_id,
+            razorpayOrderId:
+                order.razorpay_order_id,
+            razorpaySignature:
+                order.razorpay_signature
+        },
+
+        items: itemsResult.rows,
+
+        total: Number(order.total),
+
+        status: order.status,
+
+        createdAt: order.created_at
+    };
+}
+
+/* =========================
    GET ALL ORDERS
-   OLD + API ROUTE
+   ADMIN / INTERNAL
 ========================= */
 
 async function getOrders(req, res) {
@@ -736,45 +813,10 @@ async function getOrders(req, res) {
         const orders = [];
 
         for (const order of ordersResult.rows) {
-            const itemsResult = await pool.query(
-                `
-                SELECT
-                    product_id AS id,
-                    product_name AS name,
-                    price,
-                    quantity
-                FROM order_items
-                WHERE order_id = $1
-                ORDER BY id ASC
-                `,
-                [order.id]
-            );
+            const formattedOrder =
+                await formatOrder(order);
 
-            orders.push({
-                id: order.id,
-
-                customer: {
-                    name: order.customer_name,
-                    phone: order.phone,
-                    address: order.address,
-                    payment: order.payment,
-                    paymentStatus: order.payment_status,
-                    razorpayPaymentId:
-                        order.razorpay_payment_id,
-                    razorpayOrderId:
-                        order.razorpay_order_id,
-                    razorpaySignature:
-                        order.razorpay_signature
-                },
-
-                items: itemsResult.rows,
-
-                total: Number(order.total),
-
-                status: order.status,
-
-                createdAt: order.created_at
-            });
+            orders.push(formattedOrder);
         }
 
         res.json({
@@ -796,8 +838,84 @@ app.get("/orders", getOrders);
 app.get("/api/orders", getOrders);
 
 /* =========================
+   GET CUSTOMER ORDERS
+   TOKEN BASED
+========================= */
+
+async function getCustomerOrders(req, res) {
+    try {
+        const customerToken =
+            req.headers["x-customer-token"] ||
+            req.query.token;
+
+        if (!customerToken) {
+            return res.status(401).json({
+                success: false,
+                message: "Customer token is required"
+            });
+        }
+
+        const ordersResult = await pool.query(
+            `
+            SELECT
+                id,
+                customer_name,
+                phone,
+                address,
+                total,
+                payment,
+                payment_status,
+                status,
+                razorpay_payment_id,
+                razorpay_order_id,
+                razorpay_signature,
+                created_at
+            FROM orders
+            WHERE customer_token = $1
+            ORDER BY created_at DESC
+            `,
+            [customerToken]
+        );
+
+        const orders = [];
+
+        for (const order of ordersResult.rows) {
+            const formattedOrder =
+                await formatOrder(order);
+
+            orders.push(formattedOrder);
+        }
+
+        res.json({
+            success: true,
+            orders
+        });
+
+    } catch (error) {
+        console.error(
+            "Get customer orders error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message: "Unable to fetch customer orders"
+        });
+    }
+}
+
+app.get(
+    "/customer/orders",
+    getCustomerOrders
+);
+
+app.get(
+    "/api/customer/orders",
+    getCustomerOrders
+);
+
+/* =========================
    UPDATE ORDER STATUS
-   OLD + API ROUTE
 ========================= */
 
 async function updateOrderStatus(req, res) {
@@ -843,7 +961,10 @@ async function updateOrderStatus(req, res) {
         });
 
     } catch (error) {
-        console.error("Update order status error:", error);
+        console.error(
+            "Update order status error:",
+            error
+        );
 
         res.status(500).json({
             success: false,
@@ -852,8 +973,15 @@ async function updateOrderStatus(req, res) {
     }
 }
 
-app.patch("/orders/:id/status", updateOrderStatus);
-app.patch("/api/orders/:id/status", updateOrderStatus);
+app.patch(
+    "/orders/:id/status",
+    updateOrderStatus
+);
+
+app.patch(
+    "/api/orders/:id/status",
+    updateOrderStatus
+);
 
 /* =========================
    START SERVER

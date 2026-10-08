@@ -136,10 +136,11 @@ app.get("/db-test", async (req, res) => {
 });
 
 /* =========================
-   PRODUCTS
+   GET PRODUCTS
+   OLD + API ROUTE
 ========================= */
 
-app.get("/products", async (req, res) => {
+async function getProducts(req, res) {
     try {
         const result = await pool.query(`
             SELECT
@@ -173,13 +174,17 @@ app.get("/products", async (req, res) => {
             message: "Unable to fetch products"
         });
     }
-});
+}
+
+app.get("/products", getProducts);
+app.get("/api/products", getProducts);
 
 /* =========================
    ADD PRODUCT
+   OLD + API ROUTE
 ========================= */
 
-app.post("/products", async (req, res) => {
+async function addProduct(req, res) {
     try {
         const {
             id,
@@ -224,7 +229,20 @@ app.post("/products", async (req, res) => {
             VALUES (
                 $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
             )
-            RETURNING *
+            RETURNING
+                id,
+                name,
+                brand,
+                category,
+                price,
+                old_price AS "oldPrice",
+                discount,
+                rating,
+                reviews,
+                stock,
+                unit,
+                description,
+                image
             `,
             [
                 id,
@@ -256,13 +274,17 @@ app.post("/products", async (req, res) => {
             message: "Unable to add product"
         });
     }
-});
+}
+
+app.post("/products", addProduct);
+app.post("/api/products", addProduct);
 
 /* =========================
    UPDATE PRODUCT
+   OLD + API ROUTE
 ========================= */
 
-app.put("/products/:id", async (req, res) => {
+async function updateProduct(req, res) {
     try {
         const productId = Number(req.params.id);
 
@@ -280,6 +302,13 @@ app.put("/products/:id", async (req, res) => {
             description,
             image
         } = req.body;
+
+        if (!Number.isInteger(productId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid product id"
+            });
+        }
 
         const result = await pool.query(
             `
@@ -299,7 +328,20 @@ app.put("/products/:id", async (req, res) => {
                 image = $12,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $13
-            RETURNING *
+            RETURNING
+                id,
+                name,
+                brand,
+                category,
+                price,
+                old_price AS "oldPrice",
+                discount,
+                rating,
+                reviews,
+                stock,
+                unit,
+                description,
+                image
             `,
             [
                 name,
@@ -338,15 +380,26 @@ app.put("/products/:id", async (req, res) => {
             message: "Unable to update product"
         });
     }
-});
+}
+
+app.put("/products/:id", updateProduct);
+app.put("/api/products/:id", updateProduct);
 
 /* =========================
    DELETE PRODUCT
+   OLD + API ROUTE
 ========================= */
 
-app.delete("/products/:id", async (req, res) => {
+async function deleteProduct(req, res) {
     try {
         const productId = Number(req.params.id);
+
+        if (!Number.isInteger(productId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid product id"
+            });
+        }
 
         const result = await pool.query(
             "DELETE FROM products WHERE id = $1 RETURNING id",
@@ -373,7 +426,10 @@ app.delete("/products/:id", async (req, res) => {
             message: "Unable to delete product"
         });
     }
-});
+}
+
+app.delete("/products/:id", deleteProduct);
+app.delete("/api/products/:id", deleteProduct);
 
 /* =========================
    CREATE RAZORPAY ORDER
@@ -467,9 +523,10 @@ app.post("/verify-payment", (req, res) => {
 
 /* =========================
    CREATE ORDER
+   OLD + API ROUTE
 ========================= */
 
-app.post("/orders", async (req, res) => {
+async function createOrder(req, res) {
     const client = await pool.connect();
 
     try {
@@ -576,13 +633,17 @@ app.post("/orders", async (req, res) => {
     } finally {
         client.release();
     }
-});
+}
+
+app.post("/orders", createOrder);
+app.post("/api/orders", createOrder);
 
 /* =========================
    GET ALL ORDERS
+   OLD + API ROUTE
 ========================= */
 
-app.get("/orders", async (req, res) => {
+async function getOrders(req, res) {
     try {
         const ordersResult = await pool.query(`
             SELECT
@@ -628,9 +689,12 @@ app.get("/orders", async (req, res) => {
                     address: order.address,
                     payment: order.payment,
                     paymentStatus: order.payment_status,
-                    razorpayPaymentId: order.razorpay_payment_id,
-                    razorpayOrderId: order.razorpay_order_id,
-                    razorpaySignature: order.razorpay_signature
+                    razorpayPaymentId:
+                        order.razorpay_payment_id,
+                    razorpayOrderId:
+                        order.razorpay_order_id,
+                    razorpaySignature:
+                        order.razorpay_signature
                 },
 
                 items: itemsResult.rows,
@@ -656,13 +720,17 @@ app.get("/orders", async (req, res) => {
             message: "Unable to fetch orders"
         });
     }
-});
+}
+
+app.get("/orders", getOrders);
+app.get("/api/orders", getOrders);
 
 /* =========================
    UPDATE ORDER STATUS
+   OLD + API ROUTE
 ========================= */
 
-app.patch("/orders/:id/status", async (req, res) => {
+async function updateOrderStatus(req, res) {
     try {
         const orderId = req.params.id;
         const { status } = req.body;
@@ -712,7 +780,10 @@ app.patch("/orders/:id/status", async (req, res) => {
             message: "Unable to update order status"
         });
     }
-});
+}
+
+app.patch("/orders/:id/status", updateOrderStatus);
+app.patch("/api/orders/:id/status", updateOrderStatus);
 
 /* =========================
    START SERVER

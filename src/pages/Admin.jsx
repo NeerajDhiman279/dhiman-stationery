@@ -664,96 +664,76 @@ function Admin({
        CHANGE STOCK
     ========================= */
 
-    async function changeStock(
-        id,
-        amount
-    ) {
-        const product =
-            products.find(
-                (item) =>
-                    Number(item.id) ===
-                    Number(id)
-            );
+    async function changeStock(id, amount) {
+        const product = products.find(
+            (item) =>
+                Number(item.id) === Number(id)
+        );
 
         if (!product) {
             return;
         }
 
-        const currentStock =
-            Number(
-                product.stock || 0
-            );
+        const currentStock = Number(
+            product.stock || 0
+        );
 
-        const newStock =
-            Math.max(
-                0,
-                currentStock + amount
-            );
+        const newStock = Math.max(
+            0,
+            currentStock + amount
+        );
 
         const productData = {
-            name:
-                product.name,
+            name: product.name || "",
 
-            brand:
-                product.brand || "",
+            brand: product.brand || "",
 
-            category:
-                product.category || "",
+            category: product.category || "",
 
-            price:
-                Number(
-                    product.price || 0
-                ),
+            price: Number(
+                product.price || 0
+            ),
 
             oldPrice:
-                product.oldPrice === ""
+                product.oldPrice === null ||
+                    product.oldPrice === undefined ||
+                    product.oldPrice === ""
                     ? null
-                    : Number(
-                        product.oldPrice ||
-                        0
-                    ),
+                    : Number(product.oldPrice),
 
-            stock:
-                newStock,
+            stock: newStock,
 
             unit:
-                product.unit ||
-                "pieces",
+                product.unit || "pieces",
 
             discount:
-                product.discount ||
-                "",
+                product.discount || "",
 
-            rating:
-                Number(
-                    product.rating || 0
-                ),
+            rating: Number(
+                product.rating || 0
+            ),
 
-            reviews:
-                Number(
-                    product.reviews || 0
-                ),
+            reviews: Number(
+                product.reviews || 0
+            ),
 
             description:
-                product.description ||
-                "",
+                product.description || "",
 
             image:
                 product.image || ""
         };
 
         try {
-            const response =
-                await adminFetch(
-                    `${API_URL}/api/products/${id}`,
-                    {
-                        method: "PUT",
-                        body:
-                            JSON.stringify(
-                                productData
-                            )
-                    }
-                );
+            const response = await adminFetch(
+                `${API_URL}/api/products/${id}`,
+                {
+                    method: "PUT",
+                    body: JSON.stringify(
+                        productData
+                    )
+                }
+            );
 
             if (!response) {
                 return;
@@ -772,7 +752,47 @@ function Admin({
                 );
             }
 
-            await loadProducts();
+            /* =========================
+               UPDATE PRODUCT DIRECTLY
+            ========================= */
+
+            if (data.product) {
+                setProducts(
+                    (previousProducts) =>
+                        previousProducts.map(
+                            (item) =>
+                                Number(item.id) ===
+                                    Number(id)
+                                    ? {
+                                        ...item,
+                                        ...data.product,
+                                        stock:
+                                            Number(
+                                                data.product
+                                                    .stock
+                                            )
+                                    }
+                                    : item
+                        )
+                );
+            } else {
+                /* Fallback */
+
+                setProducts(
+                    (previousProducts) =>
+                        previousProducts.map(
+                            (item) =>
+                                Number(item.id) ===
+                                    Number(id)
+                                    ? {
+                                        ...item,
+                                        stock:
+                                            newStock
+                                    }
+                                    : item
+                        )
+                );
+            }
 
         } catch (error) {
             console.error(
@@ -786,7 +806,6 @@ function Admin({
             );
         }
     }
-
     /* =========================
        UPDATE ORDER STATUS
     ========================= */

@@ -18,7 +18,7 @@ import productsData from "./data/products";
 const API_BASE_URL =
   "https://dhiman-stationery-server.onrender.com";
 
-const DATA_VERSION = "dhiman-v3";
+const DATA_VERSION = "dhiman-v4";
 
 function App() {
   const [page, setPage] = useState("home");
@@ -128,17 +128,6 @@ function App() {
           );
         }
 
-        /*
-          Database stores image names such as:
-          blue-pen.jpg
-
-          Vite products.js already contains
-          the correct imported image URLs.
-
-          We use those URLs when the database
-          contains only the image filename.
-        */
-
         const databaseProducts =
           data.products.map((product) => {
             const localProduct =
@@ -205,12 +194,6 @@ function App() {
           error
         );
 
-        /*
-          Temporary fallback:
-          If API is unavailable, website will
-          still show the existing local products.
-        */
-
         setProducts(productsData);
 
         alert(
@@ -229,43 +212,108 @@ function App() {
      LOAD ORDERS FROM DATABASE
   -------------------------------- */
 
-  useEffect(() => {
-    async function loadOrders() {
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/orders`
-        );
+  async function loadOrdersFromDatabase() {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/orders`
+      );
 
-        if (!response.ok) {
-          throw new Error(
-            `Orders API error: ${response.status}`
-          );
-        }
-
-        const data = await response.json();
-
-        if (
-          data.success &&
-          Array.isArray(data.orders)
-        ) {
-          setOrders(data.orders);
-
-          localStorage.setItem(
-            "dhiman_orders",
-            JSON.stringify(data.orders)
-          );
-        }
-
-      } catch (error) {
-        console.error(
-          "Load orders error:",
-          error
+      if (!response.ok) {
+        throw new Error(
+          `Orders API error: ${response.status}`
         );
       }
+
+      const data = await response.json();
+
+      if (
+        !data.success ||
+        !Array.isArray(data.orders)
+      ) {
+        throw new Error(
+          "Invalid orders response"
+        );
+      }
+
+      setOrders(data.orders);
+
+      localStorage.setItem(
+        "dhiman_orders",
+        JSON.stringify(data.orders)
+      );
+
+      /*
+        If an order is currently open,
+        replace it with the latest
+        database version.
+      */
+
+      setSelectedOrder(
+        (currentSelectedOrder) => {
+          if (!currentSelectedOrder) {
+            return currentSelectedOrder;
+          }
+
+          const latestOrder =
+            data.orders.find(
+              (order) =>
+                String(order.id) ===
+                String(
+                  currentSelectedOrder.id
+                )
+            );
+
+          return (
+            latestOrder ||
+            currentSelectedOrder
+          );
+        }
+      );
+
+      return data.orders;
+
+    } catch (error) {
+      console.error(
+        "Load orders error:",
+        error
+      );
+
+      return null;
+    }
+  }
+
+  /* --------------------------------
+     INITIAL ORDER LOAD
+  -------------------------------- */
+
+  useEffect(() => {
+    loadOrdersFromDatabase();
+  }, []);
+
+  /* --------------------------------
+     ORDER PAGE SYNC
+  -------------------------------- */
+
+  useEffect(() => {
+    if (
+      page !== "orders" &&
+      page !== "order-details"
+    ) {
+      return;
     }
 
-    loadOrders();
-  }, []);
+    loadOrdersFromDatabase();
+
+    const syncInterval =
+      setInterval(() => {
+        loadOrdersFromDatabase();
+      }, 10000);
+
+    return () => {
+      clearInterval(syncInterval);
+    };
+
+  }, [page]);
 
   /* --------------------------------
      SAVE CART
@@ -281,8 +329,8 @@ function App() {
   /* --------------------------------
      SAVE ORDERS LOCALLY
      
-     This is only a local cache now.
-     Main orders are stored in PostgreSQL.
+     LocalStorage is only a cache.
+     PostgreSQL is the main database.
   -------------------------------- */
 
   useEffect(() => {
@@ -447,8 +495,7 @@ function App() {
 
           if (newQuantity > stock) {
             alert(
-              `Only ${stock} ${product?.unit ||
-              "items"
+              `Only ${stock} ${product?.unit || "items"
               } available`
             );
 
@@ -648,10 +695,6 @@ function App() {
           new Date().toISOString()
       };
 
-      /*
-        Save order to PostgreSQL
-      */
-
       const response = await fetch(
         `${API_BASE_URL}/api/orders`,
         {
@@ -678,21 +721,14 @@ function App() {
         );
       }
 
-      /*
-        Add order to current screen
-      */
-
       setOrders((prevOrders) => [
         newOrder,
         ...prevOrders
       ]);
 
       /*
-        Update local product stock.
-        
-        Database stock update will be
-        connected with Admin/product API
-        in the next step.
+        Update local product stock
+        after successful database order.
       */
 
       setProducts((prevProducts) =>
@@ -712,9 +748,7 @@ function App() {
 
             stock: Math.max(
               0,
-              Number(
-                product.stock || 0
-              ) -
+              Number(product.stock || 0) -
               Number(
                 cartItem.quantity || 0
               )
@@ -738,6 +772,7 @@ function App() {
       );
 
       alert(
+        error.message ||
         "Order save nahi ho paya. Please try again."
       );
     }

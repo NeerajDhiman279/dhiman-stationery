@@ -15,29 +15,28 @@ import BottomNav from "./components/BottomNav";
 
 import productsData from "./data/products";
 
-const DATA_VERSION = "dhiman-v2";
+const API_BASE_URL =
+  "https://dhiman-stationery-server.onrender.com";
+
+const DATA_VERSION = "dhiman-v3";
 
 function App() {
-  const isFreshVersion =
-    localStorage.getItem("dhiman_data_version") ===
-    DATA_VERSION;
-
   const [page, setPage] = useState("home");
 
-  const [products, setProducts] = useState(() => {
-    if (!isFreshVersion) return productsData;
+  /* --------------------------------
+     PRODUCTS
+  -------------------------------- */
 
-    const savedProducts =
-      localStorage.getItem("dhiman_products");
+  const [products, setProducts] = useState([]);
 
-    return savedProducts
-      ? JSON.parse(savedProducts)
-      : productsData;
-  });
+  const [productsLoading, setProductsLoading] =
+    useState(true);
+
+  /* --------------------------------
+     CART
+  -------------------------------- */
 
   const [cart, setCart] = useState(() => {
-    if (!isFreshVersion) return [];
-
     const savedCart =
       localStorage.getItem("dhiman_cart");
 
@@ -46,9 +45,11 @@ function App() {
       : [];
   });
 
-  const [orders, setOrders] = useState(() => {
-    if (!isFreshVersion) return [];
+  /* --------------------------------
+     ORDERS
+  -------------------------------- */
 
+  const [orders, setOrders] = useState(() => {
     const savedOrders =
       localStorage.getItem("dhiman_orders");
 
@@ -56,6 +57,10 @@ function App() {
       ? JSON.parse(savedOrders)
       : [];
   });
+
+  /* --------------------------------
+     SELECTED DATA
+  -------------------------------- */
 
   const [selectedProduct, setSelectedProduct] =
     useState(null);
@@ -68,6 +73,10 @@ function App() {
 
   const [search, setSearch] =
     useState("");
+
+  /* --------------------------------
+     ADMIN LOGIN
+  -------------------------------- */
 
   const [isAdminLoggedIn, setIsAdminLoggedIn] =
     useState(() => {
@@ -90,15 +99,173 @@ function App() {
   }, []);
 
   /* --------------------------------
-     SAVE PRODUCTS
+     LOAD PRODUCTS FROM DATABASE
   -------------------------------- */
 
   useEffect(() => {
-    localStorage.setItem(
-      "dhiman_products",
-      JSON.stringify(products)
-    );
-  }, [products]);
+    async function loadProducts() {
+      try {
+        setProductsLoading(true);
+
+        const response = await fetch(
+          `${API_BASE_URL}/api/products`
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Products API error: ${response.status}`
+          );
+        }
+
+        const data = await response.json();
+
+        if (
+          !data.success ||
+          !Array.isArray(data.products)
+        ) {
+          throw new Error(
+            "Invalid products response"
+          );
+        }
+
+        /*
+          Database stores image names such as:
+          blue-pen.jpg
+
+          Vite products.js already contains
+          the correct imported image URLs.
+
+          We use those URLs when the database
+          contains only the image filename.
+        */
+
+        const databaseProducts =
+          data.products.map((product) => {
+            const localProduct =
+              productsData.find(
+                (localItem) => {
+                  if (!localItem.image) {
+                    return false;
+                  }
+
+                  const localImageName =
+                    localItem.image
+                      .split("/")
+                      .pop();
+
+                  return (
+                    localImageName ===
+                    product.image
+                  );
+                }
+              );
+
+            return {
+              ...product,
+
+              price: Number(
+                product.price || 0
+              ),
+
+              oldPrice:
+                product.oldPrice !== null &&
+                  product.oldPrice !== undefined
+                  ? Number(product.oldPrice)
+                  : null,
+
+              rating: Number(
+                product.rating || 0
+              ),
+
+              reviews: Number(
+                product.reviews || 0
+              ),
+
+              stock: Number(
+                product.stock || 0
+              ),
+
+              image:
+                localProduct?.image ||
+                product.image ||
+                ""
+            };
+          });
+
+        setProducts(databaseProducts);
+
+        console.log(
+          "Products loaded from PostgreSQL:",
+          databaseProducts
+        );
+
+      } catch (error) {
+        console.error(
+          "Load products error:",
+          error
+        );
+
+        /*
+          Temporary fallback:
+          If API is unavailable, website will
+          still show the existing local products.
+        */
+
+        setProducts(productsData);
+
+        alert(
+          "Unable to load products from server. Showing local products."
+        );
+
+      } finally {
+        setProductsLoading(false);
+      }
+    }
+
+    loadProducts();
+  }, []);
+
+  /* --------------------------------
+     LOAD ORDERS FROM DATABASE
+  -------------------------------- */
+
+  useEffect(() => {
+    async function loadOrders() {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/orders`
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Orders API error: ${response.status}`
+          );
+        }
+
+        const data = await response.json();
+
+        if (
+          data.success &&
+          Array.isArray(data.orders)
+        ) {
+          setOrders(data.orders);
+
+          localStorage.setItem(
+            "dhiman_orders",
+            JSON.stringify(data.orders)
+          );
+        }
+
+      } catch (error) {
+        console.error(
+          "Load orders error:",
+          error
+        );
+      }
+    }
+
+    loadOrders();
+  }, []);
 
   /* --------------------------------
      SAVE CART
@@ -112,7 +279,10 @@ function App() {
   }, [cart]);
 
   /* --------------------------------
-     SAVE ORDERS
+     SAVE ORDERS LOCALLY
+     
+     This is only a local cache now.
+     Main orders are stored in PostgreSQL.
   -------------------------------- */
 
   useEffect(() => {
@@ -124,11 +294,6 @@ function App() {
 
   /* --------------------------------
      LIVE ORDER SYNC
-     
-     If Admin changes order status
-     in another browser tab/window,
-     customer side automatically gets
-     the updated orders.
   -------------------------------- */
 
   useEffect(() => {
@@ -153,25 +318,28 @@ function App() {
 
         setOrders(updatedOrders);
 
-        /*
-          If customer is currently viewing
-          an order, keep selected order updated.
-        */
+        setSelectedOrder(
+          (currentSelectedOrder) => {
+            if (!currentSelectedOrder) {
+              return currentSelectedOrder;
+            }
 
-        setSelectedOrder((currentSelectedOrder) => {
-          if (!currentSelectedOrder) {
-            return currentSelectedOrder;
-          }
+            const latestOrder =
+              updatedOrders.find(
+                (order) =>
+                  String(order.id) ===
+                  String(
+                    currentSelectedOrder.id
+                  )
+              );
 
-          const latestOrder =
-            updatedOrders.find(
-              (order) =>
-                String(order.id) ===
-                String(currentSelectedOrder.id)
+            return (
+              latestOrder ||
+              currentSelectedOrder
             );
+          }
+        );
 
-          return latestOrder || currentSelectedOrder;
-        });
       } catch (error) {
         console.error(
           "Order sync error:",
@@ -452,64 +620,127 @@ function App() {
      PLACE ORDER
   -------------------------------- */
 
-  function placeOrder(orderId, customer) {
-    const newOrder = {
-      id: orderId,
-      customer,
-      items: cart,
-
-      total: cart.reduce(
+  async function placeOrder(
+    orderId,
+    customer
+  ) {
+    try {
+      const total = cart.reduce(
         (sum, item) =>
           sum +
           Number(item.price || 0) *
           Number(item.quantity || 0),
         0
-      ),
+      );
 
-      status: "Pending",
+      const newOrder = {
+        id: orderId,
 
-      createdAt:
-        new Date().toISOString()
-    };
+        customer,
 
-    setOrders((prevOrders) => [
-      newOrder,
-      ...prevOrders
-    ]);
+        items: cart,
 
-    setProducts((prevProducts) =>
-      prevProducts.map((product) => {
-        const cartItem =
-          cart.find(
-            (item) =>
-              item.id === product.id
-          );
+        total,
 
-        if (!cartItem) {
-          return product;
-        }
+        status: "Pending",
 
-        return {
-          ...product,
+        createdAt:
+          new Date().toISOString()
+      };
 
-          stock: Math.max(
-            0,
-            Number(
-              product.stock || 0
-            ) -
-            Number(
-              cartItem.quantity || 0
-            )
+      /*
+        Save order to PostgreSQL
+      */
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/orders`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body: JSON.stringify(
+            newOrder
           )
-        };
-      })
-    );
+        }
+      );
 
-    setOrderId(orderId);
-    setCart([]);
-    setPage("success");
+      const data =
+        await response.json();
 
-    window.scrollTo(0, 0);
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message ||
+          "Unable to save order"
+        );
+      }
+
+      /*
+        Add order to current screen
+      */
+
+      setOrders((prevOrders) => [
+        newOrder,
+        ...prevOrders
+      ]);
+
+      /*
+        Update local product stock.
+        
+        Database stock update will be
+        connected with Admin/product API
+        in the next step.
+      */
+
+      setProducts((prevProducts) =>
+        prevProducts.map((product) => {
+          const cartItem =
+            cart.find(
+              (item) =>
+                item.id === product.id
+            );
+
+          if (!cartItem) {
+            return product;
+          }
+
+          return {
+            ...product,
+
+            stock: Math.max(
+              0,
+              Number(
+                product.stock || 0
+              ) -
+              Number(
+                cartItem.quantity || 0
+              )
+            )
+          };
+        })
+      );
+
+      setOrderId(orderId);
+
+      setCart([]);
+
+      setPage("success");
+
+      window.scrollTo(0, 0);
+
+    } catch (error) {
+      console.error(
+        "Place order error:",
+        error
+      );
+
+      alert(
+        "Order save nahi ho paya. Please try again."
+      );
+    }
   }
 
   /* --------------------------------
@@ -538,8 +769,12 @@ function App() {
       return (
         <Cart
           cart={cart}
-          updateQuantity={updateQuantity}
-          removeFromCart={removeFromCart}
+          updateQuantity={
+            updateQuantity
+          }
+          removeFromCart={
+            removeFromCart
+          }
           goHome={goHome}
           checkout={goCheckout}
         />
@@ -620,15 +855,9 @@ function App() {
     /* ORDER DETAILS */
 
     if (page === "order-details") {
-
       if (!selectedOrder) {
         return null;
       }
-
-      /*
-        Always get latest order from
-        current orders state.
-      */
 
       const latestOrder =
         orders.find(
@@ -689,10 +918,13 @@ function App() {
           <div className="cart-items">
 
             {latestOrder.items.map(
-              (item) => (
+              (item, index) => (
                 <div
                   className="cart-item"
-                  key={item.id}
+                  key={
+                    item.id ||
+                    `${item.name}-${index}`
+                  }
                 >
 
                   <div className="cart-item-image">
@@ -775,6 +1007,7 @@ function App() {
               </span>
 
               <span>
+
                 {paymentLabel}
 
                 {latestOrder.customer
@@ -796,6 +1029,7 @@ function App() {
                       }
                     </span>
                   )}
+
               </span>
 
             </div>
@@ -912,6 +1146,49 @@ function App() {
   /* --------------------------------
      APP
   -------------------------------- */
+
+  if (
+    productsLoading &&
+    products.length === 0
+  ) {
+    return (
+      <div className="app-shell">
+
+        <main
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            textAlign: "center"
+          }}
+        >
+          <div>
+
+            <div
+              style={{
+                fontSize: "40px",
+                marginBottom: "12px"
+              }}
+            >
+              🛍️
+            </div>
+
+            <h2>
+              Loading products...
+            </h2>
+
+            <p>
+              Please wait
+            </p>
+
+          </div>
+        </main>
+
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">

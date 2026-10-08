@@ -1,4 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+const API_URL =
+    "https://dhiman-stationery-server.onrender.com";
 
 function Admin({
     products,
@@ -12,6 +15,8 @@ function Admin({
     const [search, setSearch] = useState("");
     const [showModal, setShowModal] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [loadingOrders, setLoadingOrders] = useState(false);
 
     const [form, setForm] = useState({
         name: "",
@@ -27,6 +32,95 @@ function Admin({
         description: "",
         image: ""
     });
+
+    /* =========================
+       LOAD PRODUCTS
+    ========================= */
+
+    async function loadProducts() {
+        try {
+            setLoading(true);
+
+            const response = await fetch(
+                `${API_URL}/api/products`
+            );
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(
+                    data.message ||
+                    "Unable to load products"
+                );
+            }
+
+            setProducts(data.products || []);
+
+        } catch (error) {
+            console.error(
+                "Load products error:",
+                error
+            );
+
+            alert(
+                "Products database se load nahi ho pa rahe."
+            );
+
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    /* =========================
+       LOAD ORDERS
+    ========================= */
+
+    async function loadOrders() {
+        try {
+            setLoadingOrders(true);
+
+            const response = await fetch(
+                `${API_URL}/api/orders`
+            );
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                throw new Error(
+                    data.message ||
+                    "Unable to load orders"
+                );
+            }
+
+            setOrders(data.orders || []);
+
+        } catch (error) {
+            console.error(
+                "Load orders error:",
+                error
+            );
+
+            alert(
+                "Orders database se load nahi ho pa rahe."
+            );
+
+        } finally {
+            setLoadingOrders(false);
+        }
+    }
+
+    /* =========================
+       INITIAL DATABASE LOAD
+    ========================= */
+
+    useEffect(() => {
+        loadProducts();
+        loadOrders();
+    }, []);
+
+    /* =========================
+       STATS
+    ========================= */
 
     const totalProducts = products.length;
 
@@ -49,10 +143,17 @@ function Admin({
         0
     );
 
-    const filteredProducts = useMemo(() => {
-        const value = search.trim().toLowerCase();
+    /* =========================
+       PRODUCT SEARCH
+    ========================= */
 
-        if (!value) return products;
+    const filteredProducts = useMemo(() => {
+        const value =
+            search.trim().toLowerCase();
+
+        if (!value) {
+            return products;
+        }
 
         return products.filter((product) =>
             [
@@ -69,6 +170,10 @@ function Admin({
                 )
         );
     }, [products, search]);
+
+    /* =========================
+       ADD PRODUCT MODAL
+    ========================= */
 
     function openAddModal() {
         setEditingProduct(null);
@@ -91,6 +196,10 @@ function Admin({
         setShowModal(true);
     }
 
+    /* =========================
+       EDIT PRODUCT MODAL
+    ========================= */
+
     function openEditModal(product) {
         setEditingProduct(product);
 
@@ -112,13 +221,24 @@ function Admin({
         setShowModal(true);
     }
 
+    /* =========================
+       CLOSE MODAL
+    ========================= */
+
     function closeModal() {
         setShowModal(false);
         setEditingProduct(null);
     }
 
+    /* =========================
+       FORM CHANGE
+    ========================= */
+
     function handleFormChange(e) {
-        const { name, value } = e.target;
+        const {
+            name,
+            value
+        } = e.target;
 
         setForm((prev) => ({
             ...prev,
@@ -126,22 +246,37 @@ function Admin({
         }));
     }
 
-    function handleImageUpload(e) {
-        const file = e.target.files?.[0];
+    /* =========================
+       IMAGE UPLOAD
+    ========================= */
 
-        if (!file) return;
+    function handleImageUpload(e) {
+        const file =
+            e.target.files?.[0];
+
+        if (!file) {
+            return;
+        }
 
         if (!file.type.startsWith("image/")) {
-            alert("Please select an image file");
+            alert(
+                "Please select an image file"
+            );
             return;
         }
 
-        if (file.size > 2 * 1024 * 1024) {
-            alert("Image must be less than 2 MB");
+        if (
+            file.size >
+            2 * 1024 * 1024
+        ) {
+            alert(
+                "Image must be less than 2 MB"
+            );
             return;
         }
 
-        const reader = new FileReader();
+        const reader =
+            new FileReader();
 
         reader.onload = () => {
             setForm((prev) => ({
@@ -153,137 +288,482 @@ function Admin({
         reader.readAsDataURL(file);
     }
 
-    function saveProduct(e) {
+    /* =========================
+       GET NEXT PRODUCT ID
+    ========================= */
+
+    function getNextProductId() {
+        if (!products.length) {
+            return 1;
+        }
+
+        const ids = products
+            .map((product) =>
+                Number(product.id)
+            )
+            .filter((id) =>
+                Number.isInteger(id)
+            );
+
+        if (!ids.length) {
+            return 1;
+        }
+
+        return Math.max(...ids) + 1;
+    }
+
+    /* =========================
+       SAVE PRODUCT
+    ========================= */
+
+    async function saveProduct(e) {
         e.preventDefault();
 
         if (!form.name.trim()) {
-            alert("Please enter product name");
+            alert(
+                "Please enter product name"
+            );
             return;
         }
 
         if (!form.price) {
-            alert("Please enter product price");
+            alert(
+                "Please enter product price"
+            );
             return;
         }
 
         if (form.stock === "") {
-            alert("Please enter stock quantity");
+            alert(
+                "Please enter stock quantity"
+            );
             return;
         }
 
         const productData = {
-            id: editingProduct?.id || Date.now(),
-            name: form.name.trim(),
-            brand: form.brand.trim(),
-            category: form.category,
-            price: Number(form.price),
+            id:
+                editingProduct?.id ||
+                getNextProductId(),
+
+            name:
+                form.name.trim(),
+
+            brand:
+                form.brand.trim(),
+
+            category:
+                form.category,
+
+            price:
+                Number(form.price),
 
             oldPrice:
                 form.oldPrice === ""
                     ? Number(form.price)
                     : Number(form.oldPrice),
 
-            stock: Number(form.stock),
-            unit: form.unit,
+            stock:
+                Number(form.stock),
+
+            unit:
+                form.unit,
 
             discount:
-                form.discount.trim() || "Available",
+                form.discount.trim() ||
+                "Available",
 
-            rating: Number(form.rating) || 0,
-            reviews: Number(form.reviews) || 0,
+            rating:
+                Number(form.rating) || 0,
 
-            description: form.description.trim(),
-            image: form.image
+            reviews:
+                Number(form.reviews) || 0,
+
+            description:
+                form.description.trim(),
+
+            image:
+                form.image || ""
         };
 
-        if (editingProduct) {
-            setProducts((prevProducts) =>
-                prevProducts.map((product) =>
-                    product.id === editingProduct.id
-                        ? productData
-                        : product
-                )
+        try {
+            setLoading(true);
+
+            let response;
+
+            /* EDIT */
+
+            if (editingProduct) {
+                response = await fetch(
+                    `${API_URL}/api/products/${editingProduct.id}`,
+                    {
+                        method: "PUT",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify(
+                                productData
+                            )
+                    }
+                );
+            }
+
+            /* ADD */
+
+            else {
+                response = await fetch(
+                    `${API_URL}/api/products`,
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify(
+                                productData
+                            )
+                    }
+                );
+            }
+
+            const data =
+                await response.json();
+
+            if (
+                !response.ok ||
+                !data.success
+            ) {
+                throw new Error(
+                    data.message ||
+                    "Unable to save product"
+                );
+            }
+
+            alert(
+                editingProduct
+                    ? "Product updated successfully"
+                    : "Product added successfully"
             );
-        } else {
-            setProducts((prevProducts) => [
-                productData,
-                ...prevProducts
-            ]);
+
+            closeModal();
+
+            await loadProducts();
+
+        } catch (error) {
+            console.error(
+                "Save product error:",
+                error
+            );
+
+            alert(
+                error.message ||
+                "Product save nahi ho paaya."
+            );
+
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    /* =========================
+       DELETE PRODUCT
+    ========================= */
+
+    async function deleteProduct(id) {
+        const product =
+            products.find(
+                (item) =>
+                    Number(item.id) ===
+                    Number(id)
+            );
+
+        const confirmed =
+            window.confirm(
+                `Delete "${product?.name || "this product"}"?`
+            );
+
+        if (!confirmed) {
+            return;
         }
 
-        closeModal();
+        try {
+            setLoading(true);
+
+            const response =
+                await fetch(
+                    `${API_URL}/api/products/${id}`,
+                    {
+                        method: "DELETE"
+                    }
+                );
+
+            const data =
+                await response.json();
+
+            if (
+                !response.ok ||
+                !data.success
+            ) {
+                throw new Error(
+                    data.message ||
+                    "Unable to delete product"
+                );
+            }
+
+            alert(
+                "Product deleted successfully"
+            );
+
+            await loadProducts();
+
+        } catch (error) {
+            console.error(
+                "Delete product error:",
+                error
+            );
+
+            alert(
+                error.message ||
+                "Product delete nahi ho paaya."
+            );
+
+        } finally {
+            setLoading(false);
+        }
     }
 
-    function deleteProduct(id) {
-        const product = products.find(
-            (item) => item.id === id
-        );
+    /* =========================
+       CHANGE STOCK
+    ========================= */
 
-        const confirmed = window.confirm(
-            `Delete "${product?.name || "this product"}"?`
-        );
+    async function changeStock(
+        id,
+        amount
+    ) {
+        const product =
+            products.find(
+                (item) =>
+                    Number(item.id) ===
+                    Number(id)
+            );
 
-        if (!confirmed) return;
+        if (!product) {
+            return;
+        }
 
-        setProducts((prevProducts) =>
-            prevProducts.filter(
-                (item) => item.id !== id
-            )
-        );
+        const currentStock =
+            Number(product.stock || 0);
+
+        const newStock =
+            Math.max(
+                0,
+                currentStock + amount
+            );
+
+        const productData = {
+            name:
+                product.name,
+
+            brand:
+                product.brand || "",
+
+            category:
+                product.category || "",
+
+            price:
+                Number(product.price || 0),
+
+            oldPrice:
+                product.oldPrice === ""
+                    ? null
+                    : Number(
+                        product.oldPrice || 0
+                    ),
+
+            stock:
+                newStock,
+
+            unit:
+                product.unit ||
+                "pieces",
+
+            discount:
+                product.discount ||
+                "",
+
+            rating:
+                Number(
+                    product.rating || 0
+                ),
+
+            reviews:
+                Number(
+                    product.reviews || 0
+                ),
+
+            description:
+                product.description ||
+                "",
+
+            image:
+                product.image || ""
+        };
+
+        try {
+            const response =
+                await fetch(
+                    `${API_URL}/api/products/${id}`,
+                    {
+                        method: "PUT",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify(
+                                productData
+                            )
+                    }
+                );
+
+            const data =
+                await response.json();
+
+            if (
+                !response.ok ||
+                !data.success
+            ) {
+                throw new Error(
+                    data.message ||
+                    "Unable to update stock"
+                );
+            }
+
+            await loadProducts();
+
+        } catch (error) {
+            console.error(
+                "Stock update error:",
+                error
+            );
+
+            alert(
+                "Stock update nahi ho paaya."
+            );
+        }
     }
 
-    function changeStock(id, amount) {
-        setProducts((prevProducts) =>
-            prevProducts.map((product) => {
-                if (product.id !== id) {
-                    return product;
-                }
+    /* =========================
+       UPDATE ORDER STATUS
+    ========================= */
 
-                return {
-                    ...product,
-                    stock: Math.max(
-                        0,
-                        Number(product.stock || 0) + amount
-                    )
-                };
-            })
-        );
+    async function updateOrderStatus(
+        orderId,
+        newStatus
+    ) {
+        try {
+            const response =
+                await fetch(
+                    `${API_URL}/api/orders/${orderId}/status`,
+                    {
+                        method: "PATCH",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({
+                                status:
+                                    newStatus
+                            })
+                    }
+                );
+
+            const data =
+                await response.json();
+
+            if (
+                !response.ok ||
+                !data.success
+            ) {
+                throw new Error(
+                    data.message ||
+                    "Unable to update order"
+                );
+            }
+
+            setOrders((prevOrders) =>
+                prevOrders.map(
+                    (order) =>
+                        String(order.id) ===
+                            String(orderId)
+                            ? {
+                                ...order,
+                                status:
+                                    newStatus
+                            }
+                            : order
+                )
+            );
+
+        } catch (error) {
+            console.error(
+                "Update order status error:",
+                error
+            );
+
+            alert(
+                "Order status update nahi ho paaya."
+            );
+        }
     }
 
-    function updateOrderStatus(orderId, newStatus) {
-        setOrders((prevOrders) =>
-            prevOrders.map((order) => {
-                if (
-                    String(order.id) !==
-                    String(orderId)
-                ) {
-                    return order;
-                }
-
-                return {
-                    ...order,
-                    status: newStatus,
-                    updatedAt: new Date().toISOString()
-                };
-            })
-        );
-    }
+    /* =========================
+       PAYMENT LABEL
+    ========================= */
 
     function getPaymentLabel(order) {
-        if (order.customer?.payment === "razorpay") {
+        if (
+            order.customer?.payment ===
+            "razorpay"
+        ) {
             return "Online Payment";
         }
 
-        if (order.customer?.payment === "whatsapp") {
+        if (
+            order.customer?.payment ===
+            "whatsapp"
+        ) {
             return "WhatsApp";
         }
 
         return "Cash on Delivery";
     }
 
+    /* =========================
+       PAYMENT STATUS
+    ========================= */
+
     function getPaymentStatus(order) {
-        if (order.customer?.payment === "razorpay") {
-            return order.customer?.paymentStatus || "Paid";
+        if (
+            order.customer?.payment ===
+            "razorpay"
+        ) {
+            return (
+                order.customer
+                    ?.paymentStatus ||
+                "Paid"
+            );
         }
 
         return "";
@@ -293,12 +773,11 @@ function Admin({
         <main className="admin-page">
 
             {/* HEADER */}
+
             <header className="admin-header">
 
                 <button
-                    onClick={() => {
-                        goHome();
-                    }}
+                    onClick={goHome}
                     type="button"
                     className="cart-back-btn"
                     aria-label="Go back"
@@ -307,11 +786,19 @@ function Admin({
                 </button>
 
                 <div>
-                    <p>DHIMAN STATIONERY</p>
 
-                    <h1>Admin Panel</h1>
+                    <p>
+                        DHIMAN STATIONERY
+                    </p>
 
-                    <p>Manage your shop</p>
+                    <h1>
+                        Admin Panel
+                    </h1>
+
+                    <p>
+                        Manage your shop
+                    </p>
+
                 </div>
 
                 <button
@@ -325,52 +812,77 @@ function Admin({
 
 
             {/* STATS */}
+
             <section className="admin-stats">
 
                 <div className="admin-stat">
                     <strong>📦</strong>
-                    <strong>{totalProducts}</strong>
-                    <span>Products</span>
+                    <strong>
+                        {totalProducts}
+                    </strong>
+                    <span>
+                        Products
+                    </span>
                 </div>
 
                 <div className="admin-stat">
                     <strong>📊</strong>
-                    <strong>{totalStock}</strong>
-                    <span>Total Stock</span>
+                    <strong>
+                        {totalStock}
+                    </strong>
+                    <span>
+                        Total Stock
+                    </span>
                 </div>
 
                 <div className="admin-stat">
                     <strong>⚠️</strong>
-                    <strong>{outOfStock}</strong>
-                    <span>Out of Stock</span>
+                    <strong>
+                        {outOfStock}
+                    </strong>
+                    <span>
+                        Out of Stock
+                    </span>
                 </div>
 
                 <div className="admin-stat">
                     <strong>🛍️</strong>
-                    <strong>{totalOrders}</strong>
-                    <span>Orders</span>
+                    <strong>
+                        {totalOrders}
+                    </strong>
+                    <span>
+                        Orders
+                    </span>
                 </div>
 
                 <div className="admin-stat">
-                    <strong>₹{totalSales}</strong>
-                    <span>Total Sales</span>
+                    <strong>
+                        ₹{totalSales}
+                    </strong>
+                    <span>
+                        Total Sales
+                    </span>
                 </div>
 
             </section>
 
 
             {/* TABS */}
+
             <div className="admin-tabs">
 
                 <button
                     type="button"
                     className={
-                        activeTab === "products"
+                        activeTab ===
+                            "products"
                             ? "active"
                             : ""
                     }
                     onClick={() =>
-                        setActiveTab("products")
+                        setActiveTab(
+                            "products"
+                        )
                     }
                 >
                     Products
@@ -379,16 +891,20 @@ function Admin({
                 <button
                     type="button"
                     className={
-                        activeTab === "orders"
+                        activeTab ===
+                            "orders"
                             ? "active"
                             : ""
                     }
                     onClick={() =>
-                        setActiveTab("orders")
+                        setActiveTab(
+                            "orders"
+                        )
                     }
                 >
                     Orders{" "}
-                    {totalOrders > 0 &&
+                    {totalOrders >
+                        0 &&
                         `(${totalOrders})`}
                 </button>
 
@@ -396,491 +912,673 @@ function Admin({
 
 
             {/* PRODUCTS */}
-            {activeTab === "products" && (
-                <section className="admin-products">
 
-                    <input
-                        className="admin-search"
-                        type="text"
-                        placeholder="🔍 Search products..."
-                        value={search}
-                        onChange={(e) =>
-                            setSearch(e.target.value)
-                        }
-                    />
+            {activeTab ===
+                "products" && (
 
-                    <button
-                        type="button"
-                        className="admin-add-btn"
-                        onClick={openAddModal}
-                    >
-                        + Add Product
-                    </button>
+                    <section className="admin-products">
 
-                    {filteredProducts.length === 0 ? (
-                        <div className="admin-order-card">
-                            <p>No products found.</p>
-                        </div>
-                    ) : (
-                        filteredProducts.map((product) => {
-                            const stock =
-                                Number(product.stock || 0);
+                        <input
+                            className="admin-search"
+                            type="text"
+                            placeholder="🔍 Search products..."
+                            value={search}
+                            onChange={(e) =>
+                                setSearch(
+                                    e.target.value
+                                )
+                            }
+                        />
 
-                            return (
-                                <div
-                                    className="admin-product-card"
-                                    key={product.id}
-                                >
+                        <button
+                            type="button"
+                            className="admin-add-btn"
+                            onClick={
+                                openAddModal
+                            }
+                        >
+                            + Add Product
+                        </button>
 
-                                    <div className="admin-product-image">
-                                        {product.image ? (
-                                            <img
-                                                src={product.image}
-                                                alt={product.name}
-                                            />
-                                        ) : (
-                                            <span>📦</span>
-                                        )}
-                                    </div>
+                        {loading &&
+                            products.length ===
+                            0 ? (
 
-                                    <div className="admin-product-info">
+                            <div className="admin-order-card">
+                                <p>
+                                    Loading products...
+                                </p>
+                            </div>
 
-                                        <p>
-                                            {product.category}
-                                        </p>
+                        ) : filteredProducts.length ===
+                            0 ? (
 
-                                        <h3>
-                                            {product.name}
-                                        </h3>
+                            <div className="admin-order-card">
+                                <p>
+                                    No products found.
+                                </p>
+                            </div>
 
-                                        <p>
-                                            {product.brand ||
-                                                "No brand"}
-                                        </p>
+                        ) : (
 
-                                        <p>
-                                            ₹{product.price}
+                            filteredProducts.map(
+                                (product) => {
 
-                                            {Number(
-                                                product.oldPrice || 0
-                                            ) >
-                                                Number(
-                                                    product.price || 0
-                                                ) && (
-                                                    <span
-                                                        style={{
-                                                            textDecoration:
-                                                                "line-through",
-                                                            marginLeft:
-                                                                "5px",
-                                                            color:
-                                                                "#aaa"
-                                                        }}
-                                                    >
-                                                        ₹
-                                                        {
-                                                            product.oldPrice
+                                    const stock =
+                                        Number(
+                                            product.stock ||
+                                            0
+                                        );
+
+                                    return (
+                                        <div
+                                            className="admin-product-card"
+                                            key={
+                                                product.id
+                                            }
+                                        >
+
+                                            <div className="admin-product-image">
+
+                                                {product.image ? (
+
+                                                    <img
+                                                        src={
+                                                            product.image
                                                         }
+                                                        alt={
+                                                            product.name
+                                                        }
+                                                    />
+
+                                                ) : (
+
+                                                    <span>
+                                                        📦
                                                     </span>
+
                                                 )}
-                                        </p>
 
-                                        <p>
-                                            Stock:{" "}
-                                            <strong>
-                                                {stock}
-                                            </strong>
-                                        </p>
+                                            </div>
 
-                                        <div className="admin-stock-controls">
 
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    changeStock(
-                                                        product.id,
-                                                        -1
-                                                    )
-                                                }
-                                                disabled={
-                                                    stock <= 0
-                                                }
-                                            >
-                                                −
-                                            </button>
+                                            <div className="admin-product-info">
 
-                                            <span>
-                                                {stock}
-                                            </span>
+                                                <p>
+                                                    {
+                                                        product.category
+                                                    }
+                                                </p>
 
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    changeStock(
-                                                        product.id,
-                                                        1
-                                                    )
-                                                }
-                                            >
-                                                +
-                                            </button>
+                                                <h3>
+                                                    {
+                                                        product.name
+                                                    }
+                                                </h3>
+
+                                                <p>
+                                                    {
+                                                        product.brand ||
+                                                        "No brand"
+                                                    }
+                                                </p>
+
+                                                <p>
+                                                    ₹
+                                                    {
+                                                        product.price
+                                                    }
+
+                                                    {Number(
+                                                        product.oldPrice ||
+                                                        0
+                                                    ) >
+                                                        Number(
+                                                            product.price ||
+                                                            0
+                                                        ) && (
+
+                                                            <span
+                                                                style={{
+                                                                    textDecoration:
+                                                                        "line-through",
+                                                                    marginLeft:
+                                                                        "5px",
+                                                                    color:
+                                                                        "#aaa"
+                                                                }}
+                                                            >
+                                                                ₹
+                                                                {
+                                                                    product.oldPrice
+                                                                }
+                                                            </span>
+
+                                                        )}
+
+                                                </p>
+
+                                                <p>
+                                                    Stock:{" "}
+
+                                                    <strong>
+                                                        {stock}
+                                                    </strong>
+                                                </p>
+
+
+                                                <div className="admin-stock-controls">
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            changeStock(
+                                                                product.id,
+                                                                -1
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            stock <=
+                                                            0
+                                                        }
+                                                    >
+                                                        −
+                                                    </button>
+
+                                                    <span>
+                                                        {stock}
+                                                    </span>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            changeStock(
+                                                                product.id,
+                                                                1
+                                                            )
+                                                        }
+                                                    >
+                                                        +
+                                                    </button>
+
+                                                </div>
+
+
+                                                <div className="admin-product-actions">
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            openEditModal(
+                                                                product
+                                                            )
+                                                        }
+                                                    >
+                                                        ✏️ Edit
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            deleteProduct(
+                                                                product.id
+                                                            )
+                                                        }
+                                                    >
+                                                        🗑️ Delete
+                                                    </button>
+
+                                                </div>
+
+                                            </div>
 
                                         </div>
+                                    );
+                                }
+                            )
+                        )}
 
-                                        <div className="admin-product-actions">
-
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    openEditModal(
-                                                        product
-                                                    )
-                                                }
-                                            >
-                                                ✏️ Edit
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    deleteProduct(
-                                                        product.id
-                                                    )
-                                                }
-                                            >
-                                                🗑️ Delete
-                                            </button>
-
-                                        </div>
-
-                                    </div>
-
-                                </div>
-                            );
-                        })
-                    )}
-
-                </section>
-            )}
+                    </section>
+                )}
 
 
             {/* ORDERS */}
-            {activeTab === "orders" && (
-                <section className="admin-orders">
 
-                    {orders.length === 0 ? (
-                        <div className="admin-order-card">
+            {activeTab ===
+                "orders" && (
 
-                            <div
-                                style={{
-                                    fontSize: "30px",
-                                    textAlign: "center"
-                                }}
-                            >
-                                📦
+                    <section className="admin-orders">
+
+                        {loadingOrders ? (
+
+                            <div className="admin-order-card">
+                                <p
+                                    style={{
+                                        textAlign:
+                                            "center"
+                                    }}
+                                >
+                                    Loading orders...
+                                </p>
                             </div>
 
-                            <h3
-                                style={{
-                                    textAlign: "center",
-                                    marginTop: "8px"
-                                }}
-                            >
-                                No Orders Yet
-                            </h3>
+                        ) : orders.length ===
+                            0 ? (
 
-                            <p
-                                style={{
-                                    textAlign: "center"
-                                }}
-                            >
-                                Customer orders will
-                                appear here.
-                            </p>
+                            <div className="admin-order-card">
 
-                        </div>
-                    ) : (
-                        orders.map((order) => {
-
-                            const currentStatus =
-                                order.status || "Pending";
-
-                            const paymentLabel =
-                                getPaymentLabel(order);
-
-                            const paymentStatus =
-                                getPaymentStatus(order);
-
-                            return (
                                 <div
-                                    className="admin-order-card"
-                                    key={order.id}
+                                    style={{
+                                        fontSize:
+                                            "30px",
+                                        textAlign:
+                                            "center"
+                                    }}
                                 >
+                                    📦
+                                </div>
 
-                                    <h3>
-                                        Order #{order.id}
-                                    </h3>
+                                <h3
+                                    style={{
+                                        textAlign:
+                                            "center",
+                                        marginTop:
+                                            "8px"
+                                    }}
+                                >
+                                    No Orders Yet
+                                </h3>
 
-                                    <p>
-                                        {new Date(
-                                            order.createdAt
-                                        ).toLocaleString()}
-                                    </p>
+                                <p
+                                    style={{
+                                        textAlign:
+                                            "center"
+                                    }}
+                                >
+                                    Customer orders will
+                                    appear here.
+                                </p>
 
+                            </div>
 
-                                    {/* STATUS */}
-                                    <div
-                                        style={{
-                                            marginTop: "10px",
-                                            padding: "10px",
-                                            borderRadius: "10px",
-                                            background: "#f7f7f7"
-                                        }}
-                                    >
+                        ) : (
 
-                                        <strong>
-                                            Order Status
-                                        </strong>
+                            orders.map(
+                                (order) => {
 
-                                        <p
-                                            style={{
-                                                margin: "5px 0 8px",
-                                                fontWeight: "700"
-                                            }}
-                                        >
-                                            {currentStatus}
-                                        </p>
+                                    const currentStatus =
+                                        order.status ||
+                                        "Pending";
+
+                                    const paymentLabel =
+                                        getPaymentLabel(
+                                            order
+                                        );
+
+                                    const paymentStatus =
+                                        getPaymentStatus(
+                                            order
+                                        );
+
+                                    return (
 
                                         <div
-                                            style={{
-                                                display: "grid",
-                                                gridTemplateColumns:
-                                                    "1fr 1fr",
-                                                gap: "6px"
-                                            }}
+                                            className="admin-order-card"
+                                            key={
+                                                order.id
+                                            }
                                         >
 
-                                            {[
-                                                "Pending",
-                                                "Confirmed",
-                                                "Ready",
-                                                "Delivered"
-                                            ].map((status) => (
-                                                <button
-                                                    key={status}
-                                                    type="button"
-                                                    onClick={() =>
-                                                        updateOrderStatus(
-                                                            order.id,
-                                                            status
-                                                        )
-                                                    }
-                                                    style={{
-                                                        padding:
-                                                            "7px 5px",
-                                                        border:
-                                                            "1px solid #ddd",
-                                                        borderRadius:
-                                                            "7px",
-                                                        background:
-                                                            currentStatus ===
-                                                                status
-                                                                ? "#111"
-                                                                : "#fff",
-                                                        color:
-                                                            currentStatus ===
-                                                                status
-                                                                ? "#fff"
-                                                                : "#111",
-                                                        fontSize:
-                                                            "10px",
-                                                        fontWeight:
-                                                            "600",
-                                                        cursor:
-                                                            "pointer"
-                                                    }}
-                                                >
-                                                    {status}
-                                                </button>
-                                            ))}
+                                            <h3>
+                                                Order #
+                                                {
+                                                    order.id
+                                                }
+                                            </h3>
 
-                                        </div>
-
-                                    </div>
+                                            <p>
+                                                {new Date(
+                                                    order.createdAt
+                                                ).toLocaleString()}
+                                            </p>
 
 
-                                    {/* CUSTOMER */}
-                                    <p>
-                                        <strong>
-                                            Customer:
-                                        </strong>{" "}
-                                        {order.customer?.name ||
-                                            "Customer"}
-                                    </p>
+                                            {/* STATUS */}
 
-                                    <p>
-                                        <strong>
-                                            Mobile:
-                                        </strong>{" "}
-                                        {order.customer?.phone ||
-                                            "N/A"}
-                                    </p>
-
-                                    <p>
-                                        <strong>
-                                            Address:
-                                        </strong>{" "}
-                                        {order.customer?.address ||
-                                            "N/A"}
-                                    </p>
-
-
-                                    {/* PAYMENT */}
-                                    <p>
-                                        <strong>
-                                            Payment:
-                                        </strong>{" "}
-                                        {paymentLabel}
-
-                                        {paymentStatus && (
-                                            <span
-                                                style={{
-                                                    marginLeft: "6px",
-                                                    fontWeight: "700"
-                                                }}
-                                            >
-                                                • {paymentStatus}
-                                            </span>
-                                        )}
-                                    </p>
-
-
-                                    {/* RAZORPAY DETAILS */}
-                                    {order.customer?.payment ===
-                                        "razorpay" && (
                                             <div
                                                 style={{
-                                                    marginTop: "6px",
-                                                    padding: "8px 10px",
-                                                    borderRadius: "8px",
-                                                    background: "#f7f7f7",
-                                                    fontSize: "11px",
-                                                    wordBreak: "break-all"
+                                                    marginTop:
+                                                        "10px",
+                                                    padding:
+                                                        "10px",
+                                                    borderRadius:
+                                                        "10px",
+                                                    background:
+                                                        "#f7f7f7"
                                                 }}
                                             >
 
-                                                {order.customer
-                                                    ?.razorpayPaymentId && (
-                                                        <p
-                                                            style={{
-                                                                margin: "3px 0"
-                                                            }}
-                                                        >
-                                                            <strong>
-                                                                Payment ID:
-                                                            </strong>{" "}
-                                                            {
-                                                                order.customer
-                                                                    .razorpayPaymentId
-                                                            }
-                                                        </p>
-                                                    )}
+                                                <strong>
+                                                    Order Status
+                                                </strong>
 
-                                                {order.customer
-                                                    ?.razorpayOrderId && (
-                                                        <p
-                                                            style={{
-                                                                margin: "3px 0"
-                                                            }}
-                                                        >
-                                                            <strong>
-                                                                Razorpay Order:
-                                                            </strong>{" "}
-                                                            {
-                                                                order.customer
-                                                                    .razorpayOrderId
-                                                            }
-                                                        </p>
-                                                    )}
-
-                                            </div>
-                                        )}
-
-
-                                    {/* ITEMS */}
-                                    <div
-                                        style={{
-                                            marginTop: "10px",
-                                            paddingTop: "8px",
-                                            borderTop:
-                                                "1px solid #eee"
-                                        }}
-                                    >
-
-                                        {order.items?.map(
-                                            (item) => (
                                                 <p
-                                                    key={item.id}
+                                                    style={{
+                                                        margin:
+                                                            "5px 0 8px",
+                                                        fontWeight:
+                                                            "700"
+                                                    }}
+                                                >
+                                                    {
+                                                        currentStatus
+                                                    }
+                                                </p>
+
+                                                <div
                                                     style={{
                                                         display:
-                                                            "flex",
-                                                        justifyContent:
-                                                            "space-between"
+                                                            "grid",
+                                                        gridTemplateColumns:
+                                                            "1fr 1fr",
+                                                        gap:
+                                                            "6px"
                                                     }}
                                                 >
 
-                                                    <span>
-                                                        {item.name} ×{" "}
+                                                    {[
+                                                        "Pending",
+                                                        "Confirmed",
+                                                        "Ready",
+                                                        "Delivered"
+                                                    ].map(
+                                                        (
+                                                            status
+                                                        ) => (
+
+                                                            <button
+                                                                key={
+                                                                    status
+                                                                }
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    updateOrderStatus(
+                                                                        order.id,
+                                                                        status
+                                                                    )
+                                                                }
+                                                                style={{
+                                                                    padding:
+                                                                        "7px 5px",
+                                                                    border:
+                                                                        "1px solid #ddd",
+                                                                    borderRadius:
+                                                                        "7px",
+                                                                    background:
+                                                                        currentStatus ===
+                                                                            status
+                                                                            ? "#111"
+                                                                            : "#fff",
+                                                                    color:
+                                                                        currentStatus ===
+                                                                            status
+                                                                            ? "#fff"
+                                                                            : "#111",
+                                                                    fontSize:
+                                                                        "10px",
+                                                                    fontWeight:
+                                                                        "600",
+                                                                    cursor:
+                                                                        "pointer"
+                                                                }}
+                                                            >
+                                                                {
+                                                                    status
+                                                                }
+                                                            </button>
+
+                                                        )
+                                                    )}
+
+                                                </div>
+
+                                            </div>
+
+
+                                            {/* CUSTOMER */}
+
+                                            <p>
+                                                <strong>
+                                                    Customer:
+                                                </strong>{" "}
+                                                {
+                                                    order.customer
+                                                        ?.name ||
+                                                    "Customer"
+                                                }
+                                            </p>
+
+                                            <p>
+                                                <strong>
+                                                    Mobile:
+                                                </strong>{" "}
+                                                {
+                                                    order.customer
+                                                        ?.phone ||
+                                                    "N/A"
+                                                }
+                                            </p>
+
+                                            <p>
+                                                <strong>
+                                                    Address:
+                                                </strong>{" "}
+                                                {
+                                                    order.customer
+                                                        ?.address ||
+                                                    "N/A"
+                                                }
+                                            </p>
+
+
+                                            {/* PAYMENT */}
+
+                                            <p>
+                                                <strong>
+                                                    Payment:
+                                                </strong>{" "}
+                                                {
+                                                    paymentLabel
+                                                }
+
+                                                {paymentStatus && (
+
+                                                    <span
+                                                        style={{
+                                                            marginLeft:
+                                                                "6px",
+                                                            fontWeight:
+                                                                "700"
+                                                        }}
+                                                    >
+                                                        •{" "}
                                                         {
-                                                            item.quantity
+                                                            paymentStatus
                                                         }
                                                     </span>
 
-                                                    <strong>
-                                                        ₹
-                                                        {Number(
-                                                            item.price ||
-                                                            0
-                                                        ) *
-                                                            Number(
-                                                                item.quantity ||
-                                                                0
+                                                )}
+
+                                            </p>
+
+
+                                            {/* RAZORPAY */}
+
+                                            {order.customer
+                                                ?.payment ===
+                                                "razorpay" && (
+
+                                                    <div
+                                                        style={{
+                                                            marginTop:
+                                                                "6px",
+                                                            padding:
+                                                                "8px 10px",
+                                                            borderRadius:
+                                                                "8px",
+                                                            background:
+                                                                "#f7f7f7",
+                                                            fontSize:
+                                                                "11px",
+                                                            wordBreak:
+                                                                "break-all"
+                                                        }}
+                                                    >
+
+                                                        {order.customer
+                                                            ?.razorpayPaymentId && (
+
+                                                                <p
+                                                                    style={{
+                                                                        margin:
+                                                                            "3px 0"
+                                                                    }}
+                                                                >
+                                                                    <strong>
+                                                                        Payment ID:
+                                                                    </strong>{" "}
+                                                                    {
+                                                                        order.customer
+                                                                            .razorpayPaymentId
+                                                                    }
+                                                                </p>
+
                                                             )}
-                                                    </strong>
 
-                                                </p>
-                                            )
-                                        )}
+                                                        {order.customer
+                                                            ?.razorpayOrderId && (
 
-                                    </div>
+                                                                <p
+                                                                    style={{
+                                                                        margin:
+                                                                            "3px 0"
+                                                                    }}
+                                                                >
+                                                                    <strong>
+                                                                        Razorpay Order:
+                                                                    </strong>{" "}
+                                                                    {
+                                                                        order.customer
+                                                                            .razorpayOrderId
+                                                                    }
+                                                                </p>
+
+                                                            )}
+
+                                                    </div>
+
+                                                )}
 
 
-                                    {/* TOTAL */}
-                                    <p
-                                        style={{
-                                            marginTop: "10px",
-                                            paddingTop: "8px",
-                                            borderTop:
-                                                "1px solid #eee"
-                                        }}
-                                    >
-                                        <strong>
-                                            Total: ₹
-                                            {order.total}
-                                        </strong>
-                                    </p>
+                                            {/* ITEMS */}
 
-                                </div>
-                            );
-                        })
-                    )}
+                                            <div
+                                                style={{
+                                                    marginTop:
+                                                        "10px",
+                                                    paddingTop:
+                                                        "8px",
+                                                    borderTop:
+                                                        "1px solid #eee"
+                                                }}
+                                            >
 
-                </section>
-            )}
+                                                {order.items?.map(
+                                                    (
+                                                        item,
+                                                        index
+                                                    ) => (
+
+                                                        <p
+                                                            key={
+                                                                item.id ??
+                                                                index
+                                                            }
+                                                            style={{
+                                                                display:
+                                                                    "flex",
+                                                                justifyContent:
+                                                                    "space-between"
+                                                            }}
+                                                        >
+
+                                                            <span>
+                                                                {
+                                                                    item.name
+                                                                }{" "}
+                                                                ×{" "}
+                                                                {
+                                                                    item.quantity
+                                                                }
+                                                            </span>
+
+                                                            <strong>
+                                                                ₹
+                                                                {Number(
+                                                                    item.price ||
+                                                                    0
+                                                                ) *
+                                                                    Number(
+                                                                        item.quantity ||
+                                                                        0
+                                                                    )}
+                                                            </strong>
+
+                                                        </p>
+
+                                                    )
+                                                )}
+
+                                            </div>
+
+
+                                            {/* TOTAL */}
+
+                                            <p
+                                                style={{
+                                                    marginTop:
+                                                        "10px",
+                                                    paddingTop:
+                                                        "8px",
+                                                    borderTop:
+                                                        "1px solid #eee"
+                                                }}
+                                            >
+
+                                                <strong>
+                                                    Total: ₹
+                                                    {
+                                                        order.total
+                                                    }
+                                                </strong>
+
+                                            </p>
+
+                                        </div>
+
+                                    );
+                                }
+                            )
+                        )}
+
+                    </section>
+                )}
 
 
             {/* ADD / EDIT MODAL */}
+
             {showModal && (
+
                 <div
                     className="modal-overlay"
                     onClick={closeModal}
@@ -899,39 +1597,61 @@ function Admin({
                                 : "Add Product"}
                         </h2>
 
-                        <form onSubmit={saveProduct}>
+                        <form
+                            onSubmit={
+                                saveProduct
+                            }
+                        >
 
                             <label
                                 style={{
-                                    display: "block",
-                                    fontSize: "9px",
-                                    marginBottom: "5px"
+                                    display:
+                                        "block",
+                                    fontSize:
+                                        "9px",
+                                    marginBottom:
+                                        "5px"
                                 }}
                             >
                                 Product Image
                             </label>
 
                             {form.image && (
+
                                 <div
                                     style={{
-                                        width: "90px",
-                                        height: "90px",
-                                        marginBottom: "8px",
-                                        borderRadius: "10px",
-                                        background: "#f5f5f5",
-                                        overflow: "hidden"
+                                        width:
+                                            "90px",
+                                        height:
+                                            "90px",
+                                        marginBottom:
+                                            "8px",
+                                        borderRadius:
+                                            "10px",
+                                        background:
+                                            "#f5f5f5",
+                                        overflow:
+                                            "hidden"
                                     }}
                                 >
+
                                     <img
-                                        src={form.image}
+                                        src={
+                                            form.image
+                                        }
                                         alt="Preview"
                                         style={{
-                                            width: "100%",
-                                            height: "100%",
-                                            objectFit: "contain"
+                                            width:
+                                                "100%",
+                                            height:
+                                                "100%",
+                                            objectFit:
+                                                "contain"
                                         }}
                                     />
+
                                 </div>
+
                             )}
 
                             <input
@@ -944,11 +1664,16 @@ function Admin({
 
                             <small
                                 style={{
-                                    display: "block",
-                                    marginTop: "-5px",
-                                    marginBottom: "9px",
-                                    color: "#888",
-                                    fontSize: "8px"
+                                    display:
+                                        "block",
+                                    marginTop:
+                                        "-5px",
+                                    marginBottom:
+                                        "9px",
+                                    color:
+                                        "#888",
+                                    fontSize:
+                                        "8px"
                                 }}
                             >
                                 JPG, PNG, WEBP • Max 2 MB
@@ -958,23 +1683,36 @@ function Admin({
                                 name="name"
                                 type="text"
                                 placeholder="Product Name"
-                                value={form.name}
-                                onChange={handleFormChange}
+                                value={
+                                    form.name
+                                }
+                                onChange={
+                                    handleFormChange
+                                }
                             />
 
                             <input
                                 name="brand"
                                 type="text"
                                 placeholder="Brand"
-                                value={form.brand}
-                                onChange={handleFormChange}
+                                value={
+                                    form.brand
+                                }
+                                onChange={
+                                    handleFormChange
+                                }
                             />
 
                             <select
                                 name="category"
-                                value={form.category}
-                                onChange={handleFormChange}
+                                value={
+                                    form.category
+                                }
+                                onChange={
+                                    handleFormChange
+                                }
                             >
+
                                 <option value="Pens">
                                     Pens
                                 </option>
@@ -998,6 +1736,7 @@ function Admin({
                                 <option value="Printing">
                                     Printing
                                 </option>
+
                             </select>
 
                             <input
@@ -1005,8 +1744,12 @@ function Admin({
                                 type="number"
                                 min="0"
                                 placeholder="Price ₹"
-                                value={form.price}
-                                onChange={handleFormChange}
+                                value={
+                                    form.price
+                                }
+                                onChange={
+                                    handleFormChange
+                                }
                             />
 
                             <input
@@ -1014,8 +1757,12 @@ function Admin({
                                 type="number"
                                 min="0"
                                 placeholder="Old Price ₹"
-                                value={form.oldPrice}
-                                onChange={handleFormChange}
+                                value={
+                                    form.oldPrice
+                                }
+                                onChange={
+                                    handleFormChange
+                                }
                             />
 
                             <input
@@ -1023,15 +1770,24 @@ function Admin({
                                 type="number"
                                 min="0"
                                 placeholder="Stock Quantity"
-                                value={form.stock}
-                                onChange={handleFormChange}
+                                value={
+                                    form.stock
+                                }
+                                onChange={
+                                    handleFormChange
+                                }
                             />
 
                             <select
                                 name="unit"
-                                value={form.unit}
-                                onChange={handleFormChange}
+                                value={
+                                    form.unit
+                                }
+                                onChange={
+                                    handleFormChange
+                                }
                             >
+
                                 <option value="pieces">
                                     Pieces
                                 </option>
@@ -1047,14 +1803,19 @@ function Admin({
                                 <option value="set">
                                     Set
                                 </option>
+
                             </select>
 
                             <input
                                 name="discount"
                                 type="text"
                                 placeholder="e.g. 20% OFF"
-                                value={form.discount}
-                                onChange={handleFormChange}
+                                value={
+                                    form.discount
+                                }
+                                onChange={
+                                    handleFormChange
+                                }
                             />
 
                             <input
@@ -1064,8 +1825,12 @@ function Admin({
                                 max="5"
                                 step="0.1"
                                 placeholder="Rating"
-                                value={form.rating}
-                                onChange={handleFormChange}
+                                value={
+                                    form.rating
+                                }
+                                onChange={
+                                    handleFormChange
+                                }
                             />
 
                             <input
@@ -1073,30 +1838,47 @@ function Admin({
                                 type="number"
                                 min="0"
                                 placeholder="Reviews"
-                                value={form.reviews}
-                                onChange={handleFormChange}
+                                value={
+                                    form.reviews
+                                }
+                                onChange={
+                                    handleFormChange
+                                }
                             />
 
                             <textarea
                                 name="description"
                                 placeholder="Write product description..."
-                                value={form.description}
-                                onChange={handleFormChange}
+                                value={
+                                    form.description
+                                }
+                                onChange={
+                                    handleFormChange
+                                }
                             />
 
                             <div className="modal-buttons">
 
                                 <button
                                     type="button"
-                                    onClick={closeModal}
+                                    onClick={
+                                        closeModal
+                                    }
                                 >
                                     Cancel
                                 </button>
 
-                                <button type="submit">
-                                    {editingProduct
-                                        ? "Save Changes"
-                                        : "Add Product"}
+                                <button
+                                    type="submit"
+                                    disabled={
+                                        loading
+                                    }
+                                >
+                                    {loading
+                                        ? "Saving..."
+                                        : editingProduct
+                                            ? "Save Changes"
+                                            : "Add Product"}
                                 </button>
 
                             </div>
@@ -1106,6 +1888,7 @@ function Admin({
                     </div>
 
                 </div>
+
             )}
 
         </main>

@@ -18,7 +18,7 @@ import productsData from "./data/products";
 const API_BASE_URL =
   "https://dhiman-stationery-server.onrender.com";
 
-const DATA_VERSION = "dhiman-v4";
+const DATA_VERSION = "dhiman-v5";
 
 function App() {
   const [page, setPage] = useState("home");
@@ -49,14 +49,46 @@ function App() {
      ORDERS
   -------------------------------- */
 
-  const [orders, setOrders] = useState(() => {
-    const savedOrders =
-      localStorage.getItem("dhiman_orders");
+  const [orders, setOrders] = useState([]);
 
-    return savedOrders
-      ? JSON.parse(savedOrders)
-      : [];
-  });
+  /* --------------------------------
+     CUSTOMER ORDER TOKENS
+  -------------------------------- */
+
+  const [customerTokens, setCustomerTokens] =
+    useState(() => {
+      const savedTokens =
+        localStorage.getItem(
+          "dhiman_customer_tokens"
+        );
+
+      if (!savedTokens) {
+        return [];
+      }
+
+      try {
+        const parsedTokens =
+          JSON.parse(savedTokens);
+
+        if (!Array.isArray(parsedTokens)) {
+          return [];
+        }
+
+        return parsedTokens.filter(
+          (token) =>
+            typeof token === "string" &&
+            token.trim() !== ""
+        );
+
+      } catch (error) {
+        console.error(
+          "Customer token parse error:",
+          error
+        );
+
+        return [];
+      }
+    });
 
   /* --------------------------------
      SELECTED DATA
@@ -97,6 +129,17 @@ function App() {
       DATA_VERSION
     );
   }, []);
+
+  /* --------------------------------
+     SAVE CUSTOMER TOKENS
+  -------------------------------- */
+
+  useEffect(() => {
+    localStorage.setItem(
+      "dhiman_customer_tokens",
+      JSON.stringify(customerTokens)
+    );
+  }, [customerTokens]);
 
   /* --------------------------------
      LOAD PRODUCTS FROM DATABASE
@@ -209,44 +252,134 @@ function App() {
   }, []);
 
   /* --------------------------------
-     LOAD ORDERS FROM DATABASE
+     LOAD CUSTOMER ORDERS
+     TOKEN BASED
   -------------------------------- */
 
   async function loadOrdersFromDatabase() {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/orders`
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          `Orders API error: ${response.status}`
-        );
-      }
-
-      const data = await response.json();
+      /*
+       * No customer token means
+       * there are no customer orders
+       * to load.
+       */
 
       if (
-        !data.success ||
-        !Array.isArray(data.orders)
+        !Array.isArray(customerTokens) ||
+        customerTokens.length === 0
       ) {
-        throw new Error(
-          "Invalid orders response"
+        setOrders([]);
+
+        setSelectedOrder(
+          (currentSelectedOrder) => {
+            if (!currentSelectedOrder) {
+              return null;
+            }
+
+            return currentSelectedOrder;
+          }
         );
+
+        return [];
       }
 
-      setOrders(data.orders);
-
-      localStorage.setItem(
-        "dhiman_orders",
-        JSON.stringify(data.orders)
-      );
+      const allOrders = [];
 
       /*
-        If an order is currently open,
-        replace it with the latest
-        database version.
-      */
+       * Each order has its own secure token.
+       * Fetch orders using each saved token.
+       */
+
+      for (const token of customerTokens) {
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/customer/orders`,
+            {
+              method: "GET",
+
+              headers: {
+                "x-customer-token": token
+              }
+            }
+          );
+
+          if (!response.ok) {
+            console.error(
+              "Customer orders API error:",
+              response.status
+            );
+
+            continue;
+          }
+
+          const data =
+            await response.json();
+
+          if (
+            !data.success ||
+            !Array.isArray(data.orders)
+          ) {
+            continue;
+          }
+
+          allOrders.push(
+            ...data.orders
+          );
+
+        } catch (error) {
+          console.error(
+            "Customer token order fetch error:",
+            error
+          );
+        }
+      }
+
+      /*
+       * Remove duplicate orders.
+       */
+
+      const uniqueOrders = [];
+
+      const seenOrderIds =
+        new Set();
+
+      for (const order of allOrders) {
+        const orderKey =
+          String(order.id);
+
+        if (
+          seenOrderIds.has(orderKey)
+        ) {
+          continue;
+        }
+
+        seenOrderIds.add(
+          orderKey
+        );
+
+        uniqueOrders.push(order);
+      }
+
+      /*
+       * Newest orders first.
+       */
+
+      uniqueOrders.sort(
+        (a, b) =>
+          new Date(
+            b.createdAt
+          ).getTime() -
+          new Date(
+            a.createdAt
+          ).getTime()
+      );
+
+      setOrders(uniqueOrders);
+
+      /*
+       * Update currently opened order
+       * with latest database status.
+       */
 
       setSelectedOrder(
         (currentSelectedOrder) => {
@@ -255,7 +388,7 @@ function App() {
           }
 
           const latestOrder =
-            data.orders.find(
+            uniqueOrders.find(
               (order) =>
                 String(order.id) ===
                 String(
@@ -270,11 +403,11 @@ function App() {
         }
       );
 
-      return data.orders;
+      return uniqueOrders;
 
     } catch (error) {
       console.error(
-        "Load orders error:",
+        "Load customer orders error:",
         error
       );
 
@@ -283,15 +416,15 @@ function App() {
   }
 
   /* --------------------------------
-     INITIAL ORDER LOAD
+     INITIAL CUSTOMER ORDER LOAD
   -------------------------------- */
 
   useEffect(() => {
     loadOrdersFromDatabase();
-  }, []);
+  }, [customerTokens]);
 
   /* --------------------------------
-     ORDER PAGE SYNC
+     ORDER PAGE LIVE SYNC
   -------------------------------- */
 
   useEffect(() => {
@@ -313,7 +446,10 @@ function App() {
       clearInterval(syncInterval);
     };
 
-  }, [page]);
+  }, [
+    page,
+    customerTokens
+  ]);
 
   /* --------------------------------
      SAVE CART
@@ -346,51 +482,41 @@ function App() {
 
   useEffect(() => {
     function handleStorageChange(event) {
-      if (event.key !== "dhiman_orders") {
+      if (
+        event.key !==
+        "dhiman_customer_tokens"
+      ) {
         return;
       }
 
       if (!event.newValue) {
+        setCustomerTokens([]);
         setOrders([]);
         setSelectedOrder(null);
         return;
       }
 
       try {
-        const updatedOrders =
-          JSON.parse(event.newValue);
+        const updatedTokens =
+          JSON.parse(
+            event.newValue
+          );
 
-        if (!Array.isArray(updatedOrders)) {
+        if (
+          !Array.isArray(
+            updatedTokens
+          )
+        ) {
           return;
         }
 
-        setOrders(updatedOrders);
-
-        setSelectedOrder(
-          (currentSelectedOrder) => {
-            if (!currentSelectedOrder) {
-              return currentSelectedOrder;
-            }
-
-            const latestOrder =
-              updatedOrders.find(
-                (order) =>
-                  String(order.id) ===
-                  String(
-                    currentSelectedOrder.id
-                  )
-              );
-
-            return (
-              latestOrder ||
-              currentSelectedOrder
-            );
-          }
+        setCustomerTokens(
+          updatedTokens
         );
 
       } catch (error) {
         console.error(
-          "Order sync error:",
+          "Customer token sync error:",
           error
         );
       }
@@ -418,7 +544,10 @@ function App() {
       Number(product.stock || 0);
 
     if (currentStock <= 0) {
-      alert("This product is out of stock");
+      alert(
+        "This product is out of stock"
+      );
+
       return;
     }
 
@@ -467,7 +596,10 @@ function App() {
      UPDATE CART QUANTITY
   -------------------------------- */
 
-  function updateQuantity(id, change) {
+  function updateQuantity(
+    id,
+    change
+  ) {
     setCart((prevCart) =>
       prevCart
         .map((item) => {
@@ -664,6 +796,39 @@ function App() {
   }
 
   /* --------------------------------
+     SAVE CUSTOMER TOKEN
+  -------------------------------- */
+
+  function saveCustomerToken(
+    customerToken
+  ) {
+    if (
+      !customerToken ||
+      typeof customerToken !==
+      "string"
+    ) {
+      return;
+    }
+
+    setCustomerTokens(
+      (prevTokens) => {
+        if (
+          prevTokens.includes(
+            customerToken
+          )
+        ) {
+          return prevTokens;
+        }
+
+        return [
+          ...prevTokens,
+          customerToken
+        ];
+      }
+    );
+  }
+
+  /* --------------------------------
      PLACE ORDER
   -------------------------------- */
 
@@ -714,12 +879,29 @@ function App() {
       const data =
         await response.json();
 
-      if (!response.ok || !data.success) {
+      if (
+        !response.ok ||
+        !data.success
+      ) {
         throw new Error(
           data.message ||
           "Unable to save order"
         );
       }
+
+      /*
+       * Save secure customer token.
+       */
+
+      if (data.customerToken) {
+        saveCustomerToken(
+          data.customerToken
+        );
+      }
+
+      /*
+       * Add the new order locally.
+       */
 
       setOrders((prevOrders) => [
         newOrder,
@@ -727,34 +909,41 @@ function App() {
       ]);
 
       /*
-        Update local product stock
-        after successful database order.
-      */
+       * Update local product stock
+       * after successful database order.
+       */
 
-      setProducts((prevProducts) =>
-        prevProducts.map((product) => {
-          const cartItem =
-            cart.find(
-              (item) =>
-                item.id === product.id
-            );
+      setProducts(
+        (prevProducts) =>
+          prevProducts.map(
+            (product) => {
+              const cartItem =
+                cart.find(
+                  (item) =>
+                    item.id ===
+                    product.id
+                );
 
-          if (!cartItem) {
-            return product;
-          }
+              if (!cartItem) {
+                return product;
+              }
 
-          return {
-            ...product,
+              return {
+                ...product,
 
-            stock: Math.max(
-              0,
-              Number(product.stock || 0) -
-              Number(
-                cartItem.quantity || 0
-              )
-            )
-          };
-        })
+                stock: Math.max(
+                  0,
+                  Number(
+                    product.stock || 0
+                  ) -
+                  Number(
+                    cartItem.quantity ||
+                    0
+                  )
+                )
+              };
+            }
+          )
       );
 
       setOrderId(orderId);
@@ -898,7 +1087,9 @@ function App() {
         orders.find(
           (order) =>
             String(order.id) ===
-            String(selectedOrder.id)
+            String(
+              selectedOrder.id
+            )
         ) || selectedOrder;
 
       let paymentLabel =
@@ -908,14 +1099,16 @@ function App() {
         latestOrder.customer?.payment ===
         "whatsapp"
       ) {
-        paymentLabel = "WhatsApp";
+        paymentLabel =
+          "WhatsApp";
       }
 
       if (
         latestOrder.customer?.payment ===
         "razorpay"
       ) {
-        paymentLabel = "Online Payment";
+        paymentLabel =
+          "Online Payment";
       }
 
       return (
@@ -1052,8 +1245,10 @@ function App() {
                     ?.paymentStatus && (
                     <span
                       style={{
-                        marginLeft: "6px",
-                        fontWeight: "700"
+                        marginLeft:
+                          "6px",
+                        fontWeight:
+                          "700"
                       }}
                     >
                       •{" "}
@@ -1194,7 +1389,8 @@ function App() {
             minHeight: "100vh",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent:
+              "center",
             padding: "20px",
             textAlign: "center"
           }}
@@ -1204,7 +1400,8 @@ function App() {
             <div
               style={{
                 fontSize: "40px",
-                marginBottom: "12px"
+                marginBottom:
+                  "12px"
               }}
             >
               🛍️

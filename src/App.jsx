@@ -113,9 +113,8 @@ function App() {
   const [isAdminLoggedIn, setIsAdminLoggedIn] =
     useState(() => {
       return (
-        localStorage.getItem(
-          "dhiman_admin_login"
-        ) === "true"
+        localStorage.getItem("dhiman_admin_login") === "true" &&
+        Boolean(localStorage.getItem("dhiman_admin_token"))
       );
     });
 
@@ -761,9 +760,17 @@ function App() {
   -------------------------------- */
 
   function openAdmin() {
-    if (isAdminLoggedIn) {
+    const token = localStorage.getItem("dhiman_admin_token");
+
+    if (
+      localStorage.getItem("dhiman_admin_login") === "true" &&
+      token
+    ) {
+      setIsAdminLoggedIn(true);
       setPage("admin");
     } else {
+      setIsAdminLoggedIn(false);
+      localStorage.removeItem("dhiman_admin_login");
       setPage("admin-login");
     }
 
@@ -771,26 +778,35 @@ function App() {
   }
 
   function adminLoginSuccess() {
+    const token = localStorage.getItem("dhiman_admin_token");
+
+    if (!token) {
+      setIsAdminLoggedIn(false);
+      localStorage.removeItem("dhiman_admin_login");
+
+      alert("Login token nahi mila. Please dobara login karein.");
+      setPage("admin-login");
+      return;
+    }
+
     setIsAdminLoggedIn(true);
 
-    localStorage.setItem(
-      "dhiman_admin_login",
-      "true"
-    );
+    localStorage.setItem("dhiman_admin_login", "true");
 
     setPage("admin");
-
     window.scrollTo(0, 0);
   }
 
   function logoutAdmin() {
+    // Remove admin authentication data
+    localStorage.removeItem("dhiman_admin_token");
+    localStorage.removeItem("dhiman_admin_login");
+
+    // Clear admin session in React
     setIsAdminLoggedIn(false);
 
-    localStorage.removeItem(
-      "dhiman_admin_login"
-    );
-
-    setPage("profile");
+    // Close admin-related screens
+    setPage("admin-login");
 
     window.scrollTo(0, 0);
   }

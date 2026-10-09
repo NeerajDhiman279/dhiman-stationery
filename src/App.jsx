@@ -1094,6 +1094,8 @@ function App() {
 
     /* ORDER DETAILS */
 
+    /* ORDER DETAILS */
+
     if (page === "order-details") {
       if (!selectedOrder) {
         return null;
@@ -1103,65 +1105,227 @@ function App() {
         orders.find(
           (order) =>
             String(order.id) ===
-            String(
-              selectedOrder.id
-            )
+            String(selectedOrder.id)
         ) || selectedOrder;
 
-      let paymentLabel =
-        "Cash on Delivery";
+      const orderStatus =
+        latestOrder.status || "Pending";
+
+      const statuses = [
+        "Pending",
+        "Confirmed",
+        "Ready",
+        "Delivered"
+      ];
+
+      const currentStep =
+        statuses.indexOf(orderStatus);
+
+      let paymentLabel = "Cash on Delivery";
 
       if (
-        latestOrder.customer?.payment ===
-        "whatsapp"
+        latestOrder.customer?.payment === "whatsapp"
       ) {
-        paymentLabel =
-          "WhatsApp";
+        paymentLabel = "WhatsApp";
       }
 
       if (
-        latestOrder.customer?.payment ===
-        "razorpay"
+        latestOrder.customer?.payment === "razorpay"
       ) {
-        paymentLabel =
-          "Online Payment";
+        paymentLabel = "Online Payment";
       }
+
+      const orderDate = latestOrder.createdAt
+        ? new Date(
+          latestOrder.createdAt
+        ).toLocaleString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        })
+        : "Not available";
 
       return (
         <main className="cart-page">
-
           <div className="cart-page-header">
-
             <button
               type="button"
               className="cart-back-btn"
-              onClick={
-                goBackFromOrder
-              }
+              onClick={goBackFromOrder}
               aria-label="Go back"
             >
               ←
             </button>
 
             <div>
-
-              <h1>
-                Order #
-                {latestOrder.id}
-              </h1>
-
-              <p>
-                {latestOrder.status ||
-                  "Pending"}
-              </p>
-
+              <h1>Order #{latestOrder.id}</h1>
+              <p>{orderStatus}</p>
             </div>
-
           </div>
 
-          <div className="cart-items">
+          {/* ORDER TRACKING */}
+          <section
+            style={{
+              background: "#fff",
+              borderRadius: "16px",
+              padding: "20px 16px",
+              margin: "12px 0 20px",
+              border: "1px solid #eee"
+            }}
+          >
+            <h2
+              style={{
+                fontSize: "18px",
+                margin: "0 0 8px"
+              }}
+            >
+              Track Your Order
+            </h2>
 
-            {latestOrder.items.map(
+            <p
+              style={{
+                color: "#777",
+                fontSize: "13px",
+                margin: "0 0 24px"
+              }}
+            >
+              Current status: {orderStatus}
+            </p>
+
+            {orderStatus === "Cancelled" ? (
+              <p
+                style={{
+                  color: "#c62828",
+                  fontWeight: "700"
+                }}
+              >
+                This order has been cancelled.
+              </p>
+            ) : (
+              <div>
+                {statuses.map((status, index) => {
+                  const completed =
+                    currentStep >= index;
+
+                  return (
+                    <div
+                      key={status}
+                      style={{
+                        display: "flex",
+                        gap: "12px",
+                        minHeight:
+                          index === statuses.length - 1
+                            ? "auto"
+                            : "62px"
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          width: "24px",
+                          flexShrink: 0
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "24px",
+                            height: "24px",
+                            borderRadius: "50%",
+                            background: completed
+                              ? "#16803c"
+                              : "#e5e7eb",
+                            color: completed
+                              ? "#fff"
+                              : "#666",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "13px",
+                            fontWeight: "700"
+                          }}
+                        >
+                          {completed ? "✓" : index + 1}
+                        </div>
+
+                        {index < statuses.length - 1 && (
+                          <div
+                            style={{
+                              width: "3px",
+                              flex: 1,
+                              minHeight: "36px",
+                              background:
+                                currentStep > index
+                                  ? "#16803c"
+                                  : "#e5e7eb"
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      <div
+                        style={{
+                          paddingBottom:
+                            index === statuses.length - 1
+                              ? "0"
+                              : "24px"
+                        }}
+                      >
+                        <strong
+                          style={{
+                            display: "block",
+                            fontSize: "14px",
+                            color: completed
+                              ? "#16803c"
+                              : "#777"
+                          }}
+                        >
+                          {status === "Pending"
+                            ? "Order Placed"
+                            : status === "Confirmed"
+                              ? "Order Confirmed"
+                              : status === "Ready"
+                                ? "Order Ready"
+                                : "Delivered"}
+                        </strong>
+
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            color: "#777"
+                          }}
+                        >
+                          {status === orderStatus
+                            ? "Current order status"
+                            : completed
+                              ? "Completed"
+                              : "Waiting"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <p
+              style={{
+                fontSize: "12px",
+                color: "#777",
+                margin: "20px 0 0"
+              }}
+            >
+              Order details refresh automatically while
+              this page is open.
+            </p>
+          </section>
+
+          {/* ORDER ITEMS */}
+          <div className="cart-items">
+            {(latestOrder.items || []).map(
               (item, index) => (
                 <div
                   className="cart-item"
@@ -1170,27 +1334,19 @@ function App() {
                     `${item.name}-${index}`
                   }
                 >
-
                   <div className="cart-item-image">
-
                     {item.image ? (
                       <img
                         src={item.image}
                         alt={item.name}
                       />
                     ) : (
-                      <span>
-                        📦
-                      </span>
+                      <span>📦</span>
                     )}
-
                   </div>
 
                   <div className="cart-item-info">
-
-                    <h3>
-                      {item.name}
-                    </h3>
+                    <h3>{item.name}</h3>
 
                     {item.brand && (
                       <p className="cart-brand">
@@ -1199,147 +1355,82 @@ function App() {
                     )}
 
                     <p className="cart-brand">
-                      ₹{item.price} ×{" "}
+                      ₹{Number(item.price || 0).toFixed(2)}
+                      {" × "}
                       {item.quantity}
                     </p>
-
                   </div>
 
                   <div className="cart-item-right">
-
                     <strong>
                       ₹
-                      {Number(
-                        item.price
-                      ) *
-                        Number(
-                          item.quantity
-                        )}
+                      {(
+                        Number(item.price || 0) *
+                        Number(item.quantity || 0)
+                      ).toFixed(2)}
                     </strong>
-
                   </div>
-
                 </div>
               )
             )}
-
           </div>
 
+          {/* ORDER INFORMATION */}
           <div className="cart-summary">
-
-            <h3>
-              Order Details
-            </h3>
+            <h3>Order Details</h3>
 
             <div className="summary-row">
-
-              <span>
-                Status
-              </span>
-
-              <strong>
-                {latestOrder.status ||
-                  "Pending"}
-              </strong>
-
+              <span>Status</span>
+              <strong>{orderStatus}</strong>
             </div>
 
             <div className="summary-row">
-
-              <span>
-                Payment
-              </span>
-
-              <span>
-
-                {paymentLabel}
-
-                {latestOrder.customer
-                  ?.payment ===
-                  "razorpay" &&
-                  latestOrder.customer
-                    ?.paymentStatus && (
-                    <span
-                      style={{
-                        marginLeft:
-                          "6px",
-                        fontWeight:
-                          "700"
-                      }}
-                    >
-                      •{" "}
-                      {
-                        latestOrder
-                          .customer
-                          .paymentStatus
-                      }
-                    </span>
-                  )}
-
-              </span>
-
+              <span>Order Date</span>
+              <span>{orderDate}</span>
             </div>
 
             <div className="summary-row">
+              <span>Payment</span>
+              <span>{paymentLabel}</span>
+            </div>
 
+            {latestOrder.customer?.paymentStatus && (
+              <div className="summary-row">
+                <span>Payment Status</span>
+                <strong>
+                  {latestOrder.customer.paymentStatus}
+                </strong>
+              </div>
+            )}
+
+            <div className="summary-row">
+              <span>Customer</span>
               <span>
-                Customer
+                {latestOrder.customer?.name || "—"}
               </span>
-
-              <span>
-                {
-                  latestOrder
-                    .customer?.name
-                }
-              </span>
-
             </div>
 
             <div className="summary-row">
-
+              <span>Mobile</span>
               <span>
-                Mobile
+                {latestOrder.customer?.phone || "—"}
               </span>
-
-              <span>
-                {
-                  latestOrder
-                    .customer?.phone
-                }
-              </span>
-
             </div>
 
             <div className="summary-row">
-
+              <span>Address</span>
               <span>
-                Address
+                {latestOrder.customer?.address || "—"}
               </span>
-
-              <span>
-                {
-                  latestOrder
-                    .customer?.address
-                }
-              </span>
-
             </div>
 
             <div className="summary-row total">
-
+              <strong>Total Amount</strong>
               <strong>
-                Total Amount
+                ₹{Number(latestOrder.total || 0).toFixed(2)}
               </strong>
-
-              <strong>
-                ₹
-                {latestOrder.total}
-              </strong>
-
             </div>
-
           </div>
-
         </main>
       );
     }

@@ -15,7 +15,7 @@ node_modules/
 .envS
 server/.env
 dist/
-# Editor directories and files
+
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -28,3 +28,9 @@ dist/
 .env
 .env.*
 !.env.example
+
+.env
+.env.*
+!.env.example
+
+server/.env

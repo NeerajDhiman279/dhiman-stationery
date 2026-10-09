@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-
+import Auth from "./pages/Auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth } from "./firebase";
 import Home from "./pages/Home";
 import Cart from "./pages/Cart";
 import ProductDetails from "./pages/ProductDetails";
@@ -21,8 +23,25 @@ const API_BASE_URL =
 const DATA_VERSION = "dhiman-v5";
 
 function App() {
-  const [page, setPage] = useState("home");
+  // const [page, setPage] = useState("home");
+  const [page, setPage] = useState("auth");
+  const [customerUser, setCustomerUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCustomerUser(user);
+
+      if (user) {
+        setPage("home");
+      }
+
+      setAuthLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
   /* --------------------------------
      PRODUCTS
   -------------------------------- */
@@ -674,8 +693,6 @@ function App() {
     setSelectedProduct(null);
     setSelectedOrder(null);
     setSearch("");
-
-    window.scrollTo(0, 0);
   }
 
   /* --------------------------------
@@ -696,6 +713,30 @@ function App() {
     setPage("profile");
 
     window.scrollTo(0, 0);
+  }
+
+
+  function goAuth() {
+    setPage("auth");
+    window.scrollTo(0, 0);
+  }
+
+  function handleCustomerLogin(user) {
+    setCustomerUser(user);
+    setPage("home");
+    window.scrollTo(0, 0);
+  }
+
+  async function logoutCustomer() {
+    try {
+      await signOut(auth);
+      setCustomerUser(null);
+      setPage("profile");
+      window.scrollTo(0, 0);
+    } catch (error) {
+      console.error("Customer logout error:", error);
+      alert("Logout nahi ho paya. Please try again.");
+    }
   }
 
   /* --------------------------------
@@ -1002,6 +1043,14 @@ function App() {
         />
       );
     }
+    if (page === "auth") {
+      return (
+        <Auth
+          onContinueGuest={goHome}
+          onAuthenticated={handleCustomerLogin}
+        />
+      );
+    }
 
     /* CART */
 
@@ -1067,6 +1116,21 @@ function App() {
       );
     }
 
+
+    /* CUSTOMER AUTH */
+
+    if (page === "auth") {
+      return (
+        <Auth
+          onContinueGuest={goHome}
+          onAuthenticated={handleCustomerLogin}
+        />
+      );
+    }
+
+    /* PROFILE */
+
+
     /* PROFILE */
 
     if (page === "profile") {
@@ -1076,6 +1140,9 @@ function App() {
           openAdmin={openAdmin}
           customerOrders={orders}
           openOrders={goOrders}
+          customerUser={customerUser}
+          onSignIn={goAuth}
+          onSignOut={logoutCustomer}
         />
       );
     }

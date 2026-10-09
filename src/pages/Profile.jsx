@@ -1,14 +1,17 @@
-
 function Profile({
     goHome,
     openAdmin,
     customerOrders = [],
-    openOrders
+    openOrders,
+    customerUser,
+    onSignIn,
+    onSignOut
 }) {
     const shopPhone = "916280522760";
+    const orderCount = customerOrders.length;
 
     function callShop() {
-        window.location.href = `tel:+${shopPhone}`;
+        window.location.href = `tel: +${shopPhone} `;
     }
 
     function openWhatsApp() {
@@ -25,17 +28,11 @@ function Profile({
         );
     }
 
-    const orderCount = customerOrders.length;
-
     return (
         <main className="profile-page">
 
-            {/* =========================
-          HEADER
-      ========================= */}
-
+            {/* HEADER */}
             <div className="profile-page-header">
-
                 <button
                     type="button"
                     className="profile-back-btn"
@@ -45,312 +42,220 @@ function Profile({
                     ←
                 </button>
 
-                <h1>
-                    My Shop
-                </h1>
-
+                <h1>My Shop</h1>
             </div>
 
-
-            {/* =========================
-          SHOP PROFILE
-      ========================= */}
-
+            {/* SHOP PROFILE */}
             <section className="shop-profile">
+                <div className="shop-logo">DS</div>
 
-                <div className="shop-logo">
-                    DS
-                </div>
-
-                <h2>
-                    Dhiman Stationery
-                </h2>
+                <h2>Dhiman Stationery</h2>
 
                 <p>
                     Stationery • Printing • School Supplies
                 </p>
-
             </section>
 
+            {/* CUSTOMER ACCOUNT */}
+            <section className="profile-section">
+                <div className="profile-card">
+                    <div className="profile-card-icon">
+                        👤
+                    </div>
 
-            {/* =========================
-          MY ORDERS
-      ========================= */}
+                    <div>
+                        <strong>
+                            {customerUser
+                                ? "Your Account"
+                                : "Sign in to your account"}
+                        </strong>
 
+
+                        <p>
+                            {customerUser
+                                ? (
+                                    customerUser.displayName ||
+                                    customerUser.email ||
+                                    customerUser.phoneNumber ||
+                                    "Signed in"
+                                )
+                                : "Login with Google or mobile OTP"}
+                        </p>
+
+
+                    </div>
+                </div>
+
+                {customerUser ? (
+                    <button
+                        type="button"
+                        className="contact-btn"
+                        onClick={onSignOut}
+                    >
+                        <span>🚪</span>
+
+                        <div>
+                            <strong>Sign Out</strong>
+                            <small>Sign out from your account</small>
+                        </div>
+
+                        <b>→</b>
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        className="contact-btn"
+                        onClick={onSignIn}
+                    >
+                        <span>🔐</span>
+
+                        <div>
+                            <strong>Sign In / Create Account</strong>
+                            <small>
+                                Google, mobile OTP or continue as guest
+                            </small>
+                        </div>
+
+                        <b>→</b>
+                    </button>
+                )}
+            </section>
+
+            {/* MY ORDERS */}
             <section className="my-orders-entry">
-
                 <button
                     type="button"
                     onClick={() => {
-                        if (openOrders) {
-                            openOrders();
-                        }
+                        if (openOrders) openOrders();
                     }}
                 >
-
-                    <div className="my-orders-icon">
-                        📦
-                    </div>
+                    <div className="my-orders-icon">📦</div>
 
                     <div className="my-orders-text">
-
-                        <strong>
-                            My Orders
-                        </strong>
+                        <strong>My Orders</strong>
 
                         <p>
                             {orderCount}{" "}
-                            {orderCount === 1
-                                ? "order"
-                                : "orders"}
+                            {orderCount === 1 ? "order" : "orders"}
                         </p>
-
                     </div>
 
-                    <span className="my-orders-arrow">
-                        →
-                    </span>
-
+                    <span className="my-orders-arrow">→</span>
                 </button>
-
             </section>
 
-
-            {/* =========================
-          SHOP INFORMATION
-      ========================= */}
-
+            {/* SHOP INFORMATION */}
             <section className="profile-section">
-
                 <div className="profile-card">
-
-                    <div className="profile-card-icon">
-                        📍
-                    </div>
+                    <div className="profile-card-icon">📍</div>
 
                     <div>
-
-                        <strong>
-                            Shop Location
-                        </strong>
-
-                        <p>
-                            Nurpur Bedi,
-                            Rupnagar, Punjab
-                        </p>
-
+                        <strong>Shop Location</strong>
+                        <p>Nurpur Bedi, Rupnagar, Punjab</p>
                     </div>
-
                 </div>
-
 
                 <div className="profile-card">
-
-                    <div className="profile-card-icon">
-                        🕒
-                    </div>
+                    <div className="profile-card-icon">🕒</div>
 
                     <div>
-
-                        <strong>
-                            Opening Hours
-                        </strong>
-
-                        <p>
-                            Monday – Sunday
-                        </p>
-
-                        <small>
-                            Contact shop for today's timing
-                        </small>
-
+                        <strong>Opening Hours</strong>
+                        <p>Monday – Sunday</p>
+                        <small>Contact shop for today's timing</small>
                     </div>
-
                 </div>
-
             </section>
 
-
-            {/* =========================
-          SERVICES
-      ========================= */}
-
+            {/* SERVICES */}
             <section className="services-section">
-
-                <h2>
-                    Our Services
-                </h2>
+                <h2>Our Services</h2>
 
                 <div className="services-list">
-
                     <div>
-                        <span>
-                            📚
-                        </span>
-
-                        <p>
-                            Stationery
-                        </p>
+                        <span>📚</span>
+                        <p>Stationery</p>
                     </div>
 
-
                     <div>
-                        <span>
-                            🖨️
-                        </span>
-
-                        <p>
-                            Printing
-                        </p>
+                        <span>🖨️</span>
+                        <p>Printing</p>
                     </div>
 
-
                     <div>
-                        <span>
-                            📄
-                        </span>
-
-                        <p>
-                            Photocopy
-                        </p>
+                        <span>📄</span>
+                        <p>Photocopy</p>
                     </div>
 
-
                     <div>
-                        <span>
-                            🎨
-                        </span>
-
-                        <p>
-                            Art & Craft
-                        </p>
+                        <span>🎨</span>
+                        <p>Art & Craft</p>
                     </div>
-
                 </div>
-
             </section>
 
-
-            {/* =========================
-          CONTACT
-      ========================= */}
-
+            {/* CONTACT */}
             <section className="contact-section">
-
                 <button
                     type="button"
                     className="contact-btn"
                     onClick={callShop}
                 >
-
-                    <span>
-                        📞
-                    </span>
+                    <span>📞</span>
 
                     <div>
-                        <strong>
-                            Call Shop
-                        </strong>
-
-                        <small>
-                            Talk directly with the shop
-                        </small>
+                        <strong>Call Shop</strong>
+                        <small>Talk directly with the shop</small>
                     </div>
 
-                    <b>
-                        →
-                    </b>
-
+                    <b>→</b>
                 </button>
-
 
                 <button
                     type="button"
                     className="contact-btn"
                     onClick={openWhatsApp}
                 >
-
-                    <span>
-                        💬
-                    </span>
+                    <span>💬</span>
 
                     <div>
-                        <strong>
-                            WhatsApp
-                        </strong>
-
-                        <small>
-                            Chat with Dhiman Stationery
-                        </small>
+                        <strong>WhatsApp</strong>
+                        <small>Chat with Dhiman Stationery</small>
                     </div>
 
-                    <b>
-                        →
-                    </b>
-
+                    <b>→</b>
                 </button>
-
 
                 <button
                     type="button"
                     className="contact-btn"
                     onClick={openMaps}
                 >
-
-                    <span>
-                        📍
-                    </span>
+                    <span>📍</span>
 
                     <div>
-                        <strong>
-                            Open in Google Maps
-                        </strong>
-
-                        <small>
-                            Find our shop location
-                        </small>
+                        <strong>Open in Google Maps</strong>
+                        <small>Find our shop location</small>
                     </div>
 
-                    <b>
-                        →
-                    </b>
-
+                    <b>→</b>
                 </button>
-
             </section>
 
-
-            {/* =========================
-          ADMIN
-      ========================= */}
-
+            {/* ADMIN */}
             <section className="admin-entry">
-
                 <button
                     type="button"
                     onClick={openAdmin}
                 >
-
-                    <span>
-                        ⚙️
-                    </span>
+                    <span>⚙️</span>
 
                     <div>
-                        <strong>
-                            Admin Panel
-                        </strong>
-
-                        <small>
-                            Manage products and orders
-                        </small>
+                        <strong>Admin Panel</strong>
+                        <small>Manage products and orders</small>
                     </div>
 
-                    <b>
-                        →
-                    </b>
-
+                    <b>→</b>
                 </button>
-
             </section>
 
         </main>
